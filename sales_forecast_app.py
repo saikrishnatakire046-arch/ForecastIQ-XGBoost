@@ -73,8 +73,8 @@ except Exception as e:
     st.stop()
 
 # Optional files. The app will still open if they are not present.
-product_forecast_df = None
-region_forecast_df = None
+product_forecast_df = load_product_forecast()
+region_forecast_df = load_region_forecast()
 
 if PRODUCT_FORECAST_PATH.exists():
     try:
