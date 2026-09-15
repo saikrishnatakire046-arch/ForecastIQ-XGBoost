@@ -23,7 +23,7 @@ st.set_page_config(
 
 BASE_DIR = Path(__file__).parent
 
-DATA_PATH = Path(r"C:\Users\lenovo\ForecastIQ\sales_data.csv")
+DATA_PATH = BASE_DIR / "sales_data.csv"
 FORECAST_PATH = BASE_DIR / "future_sales_forecast_2026_2027.csv"
 
 PRODUCT_FORECAST_PATH = BASE_DIR / "product_based_forecast_2026_2027.csv"
