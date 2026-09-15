@@ -73,8 +73,8 @@ except Exception as e:
     st.stop()
 
 # Optional files. The app will still open if they are not present.
-product_forecast_df = load_product_forecast()
-region_forecast_df = load_region_forecast()
+product_forecast_df = None
+region_forecast_df = None
 
 if PRODUCT_FORECAST_PATH.exists():
     try:
@@ -248,53 +248,6 @@ st.sidebar.divider()
 
 
 # ============================================================
-# TOP FORECAST FEATURES IN SIDEBAR
-# ============================================================
-
-st.sidebar.subheader("🔮 Forecast Tools")
-
-product_options = sorted(
-    historical_df["Product_Name"]
-    .dropna()
-    .unique()
-)
-
-location_options = sorted(
-    historical_df["Store_Location"]
-    .dropna()
-    .unique()
-)
-
-if product_forecast_df is not None and "Product_Name" in product_forecast_df.columns:
-    product_options = sorted(
-        product_forecast_df["Product_Name"]
-        .dropna()
-        .unique()
-    )
-
-if region_forecast_df is not None and "Store_Location" in region_forecast_df.columns:
-    location_options = sorted(
-        region_forecast_df["Store_Location"]
-        .dropna()
-        .unique()
-    )
-
-selected_forecast_product = st.sidebar.selectbox(
-    "📦 Product-Based Forecast",
-    product_options,
-    key="forecast_product_selector"
-)
-
-selected_forecast_region = st.sidebar.selectbox(
-    "🌍 Region-Based Forecast",
-    location_options,
-    key="forecast_region_selector"
-)
-
-st.sidebar.divider()
-
-
-# ============================================================
 # NAVIGATION
 # ============================================================
 
@@ -345,191 +298,113 @@ st.sidebar.caption(
 
 
 # ============================================================
-# MAIN-AREA FORECAST TOOL HELPER
+# FORECAST SCENARIO HELPERS
 # ============================================================
 
-def show_selected_product_forecast():
-    st.header("📦 Product-Based Forecast")
+def _safe_float(value, default=0.0):
+    try:
+        value = float(value)
+        if np.isfinite(value):
+            return value
+    except Exception:
+        pass
+    return default
 
-    if product_forecast_df is None:
-        st.info(
-            "Product forecast file is not available yet. "
-            "Place product_based_forecast_2026_2027.csv in the same folder as app.py."
-        )
-        return
 
-    if "Product_Name" not in product_forecast_df.columns:
-        st.error(
-            "The product forecast CSV must contain a Product_Name column."
-        )
-        st.dataframe(
-            product_forecast_df.head(),
-            use_container_width=True,
-            hide_index=True
-        )
-        return
+def _estimate_price_elasticity(data, product):
+    """Estimate a simple historical log-log price elasticity for a product.
+    This is used only as a scenario adjustment on top of the precomputed
+    product forecast; it does not retrain or replace the Trial 84 XGBoost model.
+    """
+    p = data[data["Product_Name"] == product][["Price", "Units_Sold"]].copy()
+    p["Price"] = pd.to_numeric(p["Price"], errors="coerce")
+    p["Units_Sold"] = pd.to_numeric(p["Units_Sold"], errors="coerce")
+    p = p[(p["Price"] > 0) & (p["Units_Sold"] > 0)].dropna()
 
-    if "Predicted_Units_Sold" not in product_forecast_df.columns:
-        st.error(
-            "The product forecast CSV must contain Predicted_Units_Sold."
-        )
-        st.dataframe(
-            product_forecast_df.head(),
-            use_container_width=True,
-            hide_index=True
-        )
-        return
+    if len(p) < 10 or p["Price"].nunique() < 2:
+        return -0.50
 
-    result = product_forecast_df[
-        product_forecast_df["Product_Name"] == selected_forecast_product
-    ].copy()
+    x = np.log(p["Price"].values)
+    y = np.log(p["Units_Sold"].values)
+    try:
+        elasticity = float(np.polyfit(x, y, 1)[0])
+    except Exception:
+        elasticity = -0.50
 
-    if "Date" in result.columns:
-        result = result.sort_values("Date")
+    if not np.isfinite(elasticity):
+        elasticity = -0.50
 
-    if len(result) == 0:
-        st.warning(
-            f"No forecast data found for {selected_forecast_product}."
-        )
-        return
+    return float(np.clip(elasticity, -3.0, 0.25))
 
-    total_forecast = result["Predicted_Units_Sold"].sum()
-    average_forecast = result["Predicted_Units_Sold"].mean()
-    peak_forecast = result["Predicted_Units_Sold"].max()
 
-    c1, c2, c3 = st.columns(3)
+def _scenario_multiplier(data, product, price, discount, promotion,
+                         stock, holiday, local_event, competitor_price):
+    """Build transparent scenario adjustments from historical relationships.
+    The base forecast still comes from the supplied product forecast CSV.
+    """
+    p = data[data["Product_Name"] == product].copy()
 
-    with c1:
-        st.metric(
-            "Total Forecast",
-            f"{total_forecast:,.0f} units"
-        )
+    # Price effect: estimated historical elasticity.
+    base_price = _safe_float(p["Price"].median(), price)
+    if base_price <= 0:
+        base_price = max(price, 1.0)
+    elasticity = _estimate_price_elasticity(data, product)
+    price_multiplier = (max(price, 0.01) / base_price) ** elasticity
 
-    with c2:
-        st.metric(
-            "Average Daily Forecast",
-            f"{average_forecast:,.2f}"
-        )
+    # Discount effect: compare historical discounted vs non-discounted demand.
+    discount_multiplier = 1.0
+    if len(p) > 0 and "Discount_Percentage" in p.columns:
+        d = pd.to_numeric(p["Discount_Percentage"], errors="coerce")
+        u = pd.to_numeric(p["Units_Sold"], errors="coerce")
+        nonzero = u[d > 0].mean()
+        zero = u[d.fillna(0) <= 0].mean()
+        if pd.notna(nonzero) and pd.notna(zero) and zero > 0:
+            observed_ratio = float(nonzero / zero)
+            # Scale observed effect to the entered discount level.
+            hist_median_discount = float(d[d > 0].median()) if (d > 0).any() else 10.0
+            hist_median_discount = max(hist_median_discount, 1.0)
+            discount_multiplier = 1.0 + (observed_ratio - 1.0) * min(discount / hist_median_discount, 2.0)
+    discount_multiplier = float(np.clip(discount_multiplier, 0.60, 1.60))
 
-    with c3:
-        st.metric(
-            "Peak Daily Forecast",
-            f"{peak_forecast:,.0f} units"
-        )
+    # Promotion effect from historical product demand.
+    promotion_multiplier = 1.0
+    if len(p) > 0 and "Promotion_Flag" in p.columns:
+        promo = pd.to_numeric(p["Promotion_Flag"], errors="coerce")
+        units = pd.to_numeric(p["Units_Sold"], errors="coerce")
+        promo_mean = units[promo == 1].mean()
+        no_promo_mean = units[promo == 0].mean()
+        if pd.notna(promo_mean) and pd.notna(no_promo_mean) and no_promo_mean > 0:
+            historical_promo_ratio = float(promo_mean / no_promo_mean)
+            promotion_multiplier = historical_promo_ratio if promotion == "Yes" else 1.0 / max(historical_promo_ratio, 0.01)
+            if promotion == "No":
+                promotion_multiplier = 1.0
+    promotion_multiplier = float(np.clip(promotion_multiplier, 0.70, 1.50))
 
-    st.divider()
+    # Stock availability effect. Treat 100 as fully available.
+    stock_multiplier = float(np.clip(stock / 100.0, 0.50, 1.00))
 
-    if "Date" in result.columns:
-        st.subheader("Daily Product Forecast")
-        st.line_chart(
-            result.set_index("Date")["Predicted_Units_Sold"],
-            height=400
-        )
+    # Holiday/local event scenario multipliers. These are intentionally modest.
+    holiday_multiplier = 1.08 if holiday == "Yes" else 1.00
+    event_multiplier = 1.05 if local_event == "Yes" else 1.00
 
-    st.subheader("Product Forecast Data")
+    # Competitor price effect: cheaper competitor can reduce demand.
+    competitor_multiplier = 1.0
+    if competitor_price > 0 and price > 0:
+        relative_gap = (price - competitor_price) / max(competitor_price, 0.01)
+        competitor_multiplier = 1.0 - 0.25 * relative_gap
+    competitor_multiplier = float(np.clip(competitor_multiplier, 0.75, 1.25))
 
-    st.dataframe(
-        result,
-        use_container_width=True,
-        hide_index=True
+    multiplier = (
+        price_multiplier
+        * discount_multiplier
+        * promotion_multiplier
+        * stock_multiplier
+        * holiday_multiplier
+        * event_multiplier
+        * competitor_multiplier
     )
 
-    download_csv(
-        result,
-        f"ForecastIQ_{selected_forecast_product}_Forecast.csv"
-    )
-
-
-def show_selected_region_forecast():
-    st.header("🌍 Region-Based Forecast")
-
-    if region_forecast_df is None:
-        st.info(
-            "Region forecast file is not available yet. "
-            "Place region_based_forecast_2026_2027.csv in the same folder as app.py."
-        )
-        return
-
-    if "Store_Location" not in region_forecast_df.columns:
-        st.error(
-            "The region forecast CSV must contain a Store_Location column."
-        )
-        st.dataframe(
-            region_forecast_df.head(),
-            use_container_width=True,
-            hide_index=True
-        )
-        return
-
-    if "Predicted_Units_Sold" not in region_forecast_df.columns:
-        st.error(
-            "The region forecast CSV must contain Predicted_Units_Sold."
-        )
-        st.dataframe(
-            region_forecast_df.head(),
-            use_container_width=True,
-            hide_index=True
-        )
-        return
-
-    result = region_forecast_df[
-        region_forecast_df["Store_Location"] == selected_forecast_region
-    ].copy()
-
-    if "Date" in result.columns:
-        result = result.sort_values("Date")
-
-    if len(result) == 0:
-        st.warning(
-            f"No forecast data found for {selected_forecast_region}."
-        )
-        return
-
-    total_forecast = result["Predicted_Units_Sold"].sum()
-    average_forecast = result["Predicted_Units_Sold"].mean()
-    peak_forecast = result["Predicted_Units_Sold"].max()
-
-    c1, c2, c3 = st.columns(3)
-
-    with c1:
-        st.metric(
-            "Total Forecast",
-            f"{total_forecast:,.0f} units"
-        )
-
-    with c2:
-        st.metric(
-            "Average Daily Forecast",
-            f"{average_forecast:,.2f}"
-        )
-
-    with c3:
-        st.metric(
-            "Peak Daily Forecast",
-            f"{peak_forecast:,.0f} units"
-        )
-
-    st.divider()
-
-    if "Date" in result.columns:
-        st.subheader("Daily Region Forecast")
-        st.line_chart(
-            result.set_index("Date")["Predicted_Units_Sold"],
-            height=400
-        )
-
-    st.subheader("Region Forecast Data")
-
-    st.dataframe(
-        result,
-        use_container_width=True,
-        hide_index=True
-    )
-
-    download_csv(
-        result,
-        f"ForecastIQ_{selected_forecast_region}_Forecast.csv"
-    )
+    return float(np.clip(multiplier, 0.20, 3.00)), elasticity, base_price
 
 
 # ============================================================
@@ -557,231 +432,351 @@ st.divider()
 
 
 # ============================================================
-# 0. PRODUCT-BASED FORECAST
+# PRODUCT-BASED FORECAST
 # ============================================================
 
 if page == "📦 Product-Based Forecast":
-    st.header("📦 Product-Based Forecast")
-    st.caption("Generate a product-level forecast with adjustable business scenario inputs and download the generated result as CSV.")
 
-    if product_forecast_df.empty:
+    st.header("📦 Product-Based Forecast")
+    st.caption(
+        "Create a product-level forecast scenario and download the generated CSV. "
+        "Price and business inputs adjust the precomputed product forecast."
+    )
+
+    if product_forecast_df is None or product_forecast_df.empty:
         st.error(
-            "Product forecast data is not available. Place "
-            "product_based_forecast_2026_2027.csv in the same folder as app.py."
+            "Product forecast data is not available. Make sure "
+            "product_based_forecast_2026_2027.csv is in the same GitHub folder "
+            "as sales_forecast_app.py."
+        )
+    elif not {"Date", "Product_Name", "Predicted_Units_Sold"}.issubset(product_forecast_df.columns):
+        st.error(
+            "Product forecast CSV must contain Date, Product_Name and Predicted_Units_Sold."
         )
     else:
-        products = sorted(product_forecast_df["Product_Name"].dropna().astype(str).unique().tolist())
-        selected_product = st.selectbox("📦 Product", products)
+        product_options = sorted(
+            product_forecast_df["Product_Name"].dropna().unique()
+        )
 
-        # Product-level forecast files do not contain Store_Location. We therefore
-        # show the store selector from historical data as requested, while the
-        # product forecast itself remains product-level.
+        selected_product = st.selectbox(
+            "📦 Product",
+            product_options,
+            key="product_forecast_product"
+        )
+
         product_hist = historical_df[
-            historical_df["Product_Name"].astype(str) == str(selected_product)
+            historical_df["Product_Name"] == selected_product
         ].copy()
-        stores = sorted(product_hist["Store_Location"].dropna().astype(str).unique().tolist()) if "Store_Location" in product_hist.columns else []
+
+        store_options = sorted(
+            product_hist["Store_Location"].dropna().unique()
+        )
+        store_options = ["All Stores"] + store_options
+
         selected_store = st.selectbox(
             "🏪 Store",
-            ["All Stores"] + stores,
-            help="The supplied product forecast is product-level, so Store is a scenario/context selection and does not filter the CSV forecast."
+            store_options,
+            key="product_forecast_store"
         )
 
         forecast_min = product_forecast_df["Date"].min().date()
         forecast_max = product_forecast_df["Date"].max().date()
-        default_date = max(forecast_min, min(pd.Timestamp("2026-09-15").date(), forecast_max))
-        current_date = st.date_input(
-            "📅 Current Date",
-            value=default_date,
-            min_value=forecast_min,
-            max_value=forecast_max
-        )
 
-        # Historical defaults for the selected product.
-        if not product_hist.empty:
-            default_price = float(pd.to_numeric(product_hist["Price"], errors="coerce").dropna().mean()) if "Price" in product_hist.columns and pd.to_numeric(product_hist["Price"], errors="coerce").notna().any() else 100.0
-            default_competitor = float(pd.to_numeric(product_hist["Competitor_Price"], errors="coerce").dropna().mean()) if "Competitor_Price" in product_hist.columns and pd.to_numeric(product_hist["Competitor_Price"], errors="coerce").notna().any() else default_price
-            default_stock = float(pd.to_numeric(product_hist["Stock_Availability"], errors="coerce").dropna().mean()) if "Stock_Availability" in product_hist.columns and pd.to_numeric(product_hist["Stock_Availability"], errors="coerce").notna().any() else 100.0
-        else:
-            default_price = 100.0
-            default_competitor = 100.0
-            default_stock = 100.0
+        default_date = pd.Timestamp("2026-09-15").date()
+        default_date = min(max(default_date, forecast_min), forecast_max)
 
-        c1, c2 = st.columns(2)
-        with c1:
-            base_price = st.number_input(
-                "💰 Price",
-                min_value=0.0,
-                value=round(default_price, 2),
-                step=1.0,
-                format="%.2f",
-                key="product_base_price"
-            )
-        with c2:
-            price_change_pct = st.slider(
-                "💰 Price Adjustment (%)",
-                min_value=-50.0,
-                max_value=50.0,
-                value=0.0,
-                step=1.0,
-                help="Negative values decrease price; positive values increase price."
-            )
-
-        adjusted_price = max(0.0, base_price * (1 + price_change_pct / 100.0))
-        st.metric("Adjusted Price", f"₹{adjusted_price:,.2f}", f"{price_change_pct:+.0f}%")
-
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            discount_pct = st.number_input("🏷️ Discount %", min_value=0.0, max_value=100.0, value=0.0, step=1.0)
-        with c2:
-            promotion = st.selectbox("📢 Promotion", ["No", "Yes"])
-        with c3:
-            stock_availability = st.number_input(
-                "📦 Stock Availability",
-                min_value=0.0,
-                value=round(default_stock, 2),
-                step=1.0,
-                format="%.2f"
-            )
-
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            holiday = st.selectbox("🎉 Holiday", ["No", "Yes"])
-        with c2:
-            local_event = st.selectbox("📍 Local Event", ["No", "Yes"])
-        with c3:
-            competitor_price = st.number_input(
-                "💰 Competitor Price",
-                min_value=0.0,
-                value=round(default_competitor, 2),
-                step=1.0,
-                format="%.2f"
-            )
-
-        forecast_horizon = st.slider(
-            "🔮 Forecast Horizon (days)",
-            min_value=1,
-            max_value=90,
-            value=30,
-            step=1
-        )
-
-        st.divider()
-        st.info(
-            "Scenario inputs are applied to the existing product forecast as an adjustment layer. "
-            "The supplied product forecast CSV is product-level and does not contain store-level or all scenario feature columns."
-        )
-
-        if st.button("🔮 Generate Forecast", type="primary", key="generate_product_forecast"):
-            end_date = min(
-                pd.Timestamp(current_date) + pd.Timedelta(days=forecast_horizon - 1),
-                product_forecast_df["Date"].max()
-            )
-
-            result = product_forecast_df[
-                (product_forecast_df["Product_Name"].astype(str) == str(selected_product))
-                & (product_forecast_df["Date"] >= pd.Timestamp(current_date))
-                & (product_forecast_df["Date"] <= end_date)
-            ].copy()
-
-            if result.empty:
-                st.warning("No product forecast is available for the selected product/date range.")
-            else:
-                # Transparent scenario adjustment layer.
-                # Price elasticity assumption: +1% price -> approximately -0.5% demand.
-                price_factor = max(0.0, 1 - 0.50 * (price_change_pct / 100.0))
-                discount_factor = 1 + 0.30 * (discount_pct / 100.0)
-                promotion_factor = 1.10 if promotion == "Yes" else 1.00
-                holiday_factor = 1.05 if holiday == "Yes" else 1.00
-                event_factor = 1.05 if local_event == "Yes" else 1.00
-                competitor_factor = 1.00
-                if competitor_price > 0:
-                    competitor_factor = np.clip(1 + 0.20 * ((adjusted_price - competitor_price) / competitor_price), 0.75, 1.25)
-                stock_factor = np.clip(stock_availability / 100.0, 0.0, 1.0)
-
-                scenario_factor = (
-                    price_factor
-                    * discount_factor
-                    * promotion_factor
-                    * holiday_factor
-                    * event_factor
-                    * competitor_factor
-                    * stock_factor
-                )
-
-                result["Base_Predicted_Units_Sold"] = result["Predicted_Units_Sold"]
-                result["Predicted_Units_Sold"] = (
-                    result["Predicted_Units_Sold"] * scenario_factor
-                ).clip(lower=0)
-                result["Product"] = selected_product
-                result["Store"] = selected_store
-                result["Adjusted_Price"] = adjusted_price
-                result["Price_Adjustment_%"] = price_change_pct
-                result["Discount_%"] = discount_pct
-                result["Promotion"] = promotion
-                result["Stock_Availability"] = stock_availability
-                result["Holiday"] = holiday
-                result["Local_Event"] = local_event
-                result["Competitor_Price"] = competitor_price
-
-                st.success("Product forecast generated successfully!")
-
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Total Forecast Units", f"{result['Predicted_Units_Sold'].sum():,.0f}")
-                m2.metric("Average Daily Forecast", f"{result['Predicted_Units_Sold'].mean():,.2f}")
-                m3.metric("Peak Daily Forecast", f"{result['Predicted_Units_Sold'].max():,.0f}")
-
-                st.subheader("📈 Forecast")
-                st.line_chart(
-                    result.set_index("Date")["Predicted_Units_Sold"],
-                    use_container_width=True
-                )
-
-                st.subheader("📋 Forecast Details")
-                display_cols = [
-                    "Date", "Product", "Store", "Base_Predicted_Units_Sold",
-                    "Predicted_Units_Sold", "Adjusted_Price", "Price_Adjustment_%",
-                    "Discount_%", "Promotion", "Stock_Availability", "Holiday",
-                    "Local_Event", "Competitor_Price"
-                ]
-                display_cols = [c for c in display_cols if c in result.columns]
-                st.dataframe(result[display_cols], use_container_width=True, hide_index=True)
-
-                csv_data = result[display_cols].to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "📥 Download Forecast CSV",
-                    data=csv_data,
-                    file_name=f"{selected_product}_product_forecast.csv",
-                    mime="text/csv",
-                    key="download_product_forecast_csv"
-                )
-
-
-elif page == "📍 Region-Based Forecast":
-    st.header("📍 Region-Based Forecast")
-    st.caption("Generate a region/location-level forecast and download the generated result as CSV.")
-
-    if region_forecast_df.empty:
-        st.error(
-            "Region forecast data is not available. Place "
-            "region_based_forecast_2026_2027.csv in the same folder as app.py."
-        )
-    else:
-        regions = sorted(region_forecast_df["Store_Location"].dropna().astype(str).unique().tolist())
-        selected_region = st.selectbox("📍 Region / Location", regions)
-
-        forecast_min = region_forecast_df["Date"].min().date()
-        forecast_max = region_forecast_df["Date"].max().date()
-        default_date = max(forecast_min, min(pd.Timestamp("2026-09-15").date(), forecast_max))
         current_date = st.date_input(
             "📅 Current Date",
             value=default_date,
             min_value=forecast_min,
             max_value=forecast_max,
-            key="region_current_date"
+            key="product_forecast_current_date"
+        )
+
+        default_price = _safe_float(
+            product_hist["Price"].median() if not product_hist.empty else 100.0,
+            100.0
+        )
+
+        default_competitor = _safe_float(
+            product_hist["Competitor_Price"].median()
+            if not product_hist.empty else default_price,
+            default_price
+        )
+
+        default_stock = _safe_float(
+            product_hist["Stock_Availability"].median()
+            if not product_hist.empty else 100.0,
+            100.0
+        )
+
+        c1, c2, c3 = st.columns(3)
+
+        with c1:
+            price = st.number_input(
+                "💰 Price",
+                min_value=0.01,
+                value=float(default_price),
+                step=1.0,
+                key="product_forecast_price"
+            )
+
+        with c2:
+            discount = st.number_input(
+                "🏷️ Discount %",
+                min_value=0.0,
+                max_value=100.0,
+                value=0.0,
+                step=1.0,
+                key="product_forecast_discount"
+            )
+
+        with c3:
+            promotion = st.selectbox(
+                "📢 Promotion",
+                ["No", "Yes"],
+                key="product_forecast_promotion"
+            )
+
+        c4, c5, c6 = st.columns(3)
+
+        with c4:
+            stock = st.number_input(
+                "📦 Stock Availability",
+                min_value=0.0,
+                max_value=100.0,
+                value=float(np.clip(default_stock, 0, 100)),
+                step=1.0,
+                key="product_forecast_stock"
+            )
+
+        with c5:
+            holiday = st.selectbox(
+                "🎉 Holiday",
+                ["No", "Yes"],
+                key="product_forecast_holiday"
+            )
+
+        with c6:
+            local_event = st.selectbox(
+                "📍 Local Event",
+                ["No", "Yes"],
+                key="product_forecast_event"
+            )
+
+        c7, c8, c9 = st.columns(3)
+
+        with c7:
+            competitor_price = st.number_input(
+                "💰 Competitor Price",
+                min_value=0.01,
+                value=float(default_competitor),
+                step=1.0,
+                key="product_forecast_competitor"
+            )
+
+        with c8:
+            forecast_horizon = st.slider(
+                "🔮 Forecast Horizon",
+                min_value=1,
+                max_value=90,
+                value=30,
+                step=1,
+                key="product_forecast_horizon"
+            )
+
+        with c9:
+            st.metric(
+                "Selected Price",
+                f"₹{price:,.2f}"
+            )
+
+        st.caption(
+            "Use the +/- controls on Price to increase or decrease the price. "
+            "The generated forecast will change accordingly."
+        )
+
+        generate_product = st.button(
+            "🔮 Generate Product Forecast",
+            type="primary",
+            use_container_width=True,
+            key="generate_product_forecast"
+        )
+
+        if generate_product:
+            result = product_forecast_df[
+                product_forecast_df["Product_Name"] == selected_product
+            ].copy()
+            result = result.sort_values("Date")
+
+            start_ts = pd.Timestamp(current_date)
+            end_ts = start_ts + pd.Timedelta(days=forecast_horizon - 1)
+
+            result = result[
+                (result["Date"] >= start_ts) &
+                (result["Date"] <= end_ts)
+            ].copy()
+
+            if result.empty:
+                st.warning("No product forecast is available for the selected date/horizon.")
+            else:
+                multiplier, elasticity, base_price = _scenario_multiplier(
+                    historical_df,
+                    selected_product,
+                    price,
+                    discount,
+                    promotion,
+                    stock,
+                    holiday,
+                    local_event,
+                    competitor_price
+                )
+
+                result["Base_Predicted_Units_Sold"] = result["Predicted_Units_Sold"]
+                result["Scenario_Adjustment_Factor"] = multiplier
+                result["Predicted_Units_Sold"] = np.maximum(
+                    0,
+                    result["Base_Predicted_Units_Sold"] * multiplier
+                )
+                result["Product"] = selected_product
+                result["Store"] = selected_store
+                result["Price"] = price
+                result["Discount_Percentage"] = discount
+                result["Promotion"] = promotion
+                result["Stock_Availability"] = stock
+                result["Holiday"] = holiday
+                result["Local_Event"] = local_event
+                result["Competitor_Price"] = competitor_price
+                result["Current_Date"] = pd.Timestamp(current_date)
+                result["Forecast_Horizon_Days"] = forecast_horizon
+                result["Price_Elasticity_Estimate"] = elasticity
+                result["Reference_Historical_Price"] = base_price
+
+                result = result[
+                    [
+                        "Date",
+                        "Product",
+                        "Store",
+                        "Current_Date",
+                        "Forecast_Horizon_Days",
+                        "Price",
+                        "Discount_Percentage",
+                        "Promotion",
+                        "Stock_Availability",
+                        "Holiday",
+                        "Local_Event",
+                        "Competitor_Price",
+                        "Base_Predicted_Units_Sold",
+                        "Scenario_Adjustment_Factor",
+                        "Price_Elasticity_Estimate",
+                        "Reference_Historical_Price",
+                        "Predicted_Units_Sold"
+                    ]
+                ]
+
+                st.session_state["product_generated_forecast"] = result
+
+        if "product_generated_forecast" in st.session_state:
+            result = st.session_state["product_generated_forecast"]
+
+            st.success("Product forecast generated successfully!")
+
+            c1, c2, c3 = st.columns(3)
+
+            with c1:
+                st.metric(
+                    "Total Forecast",
+                    f"{result['Predicted_Units_Sold'].sum():,.0f} units"
+                )
+
+            with c2:
+                st.metric(
+                    "Average Daily Forecast",
+                    f"{result['Predicted_Units_Sold'].mean():,.2f}"
+                )
+
+            with c3:
+                st.metric(
+                    "Peak Daily Forecast",
+                    f"{result['Predicted_Units_Sold'].max():,.0f} units"
+                )
+
+            st.subheader("📈 Generated Product Forecast")
+            st.line_chart(
+                result.set_index("Date")["Predicted_Units_Sold"],
+                height=400
+            )
+
+            st.dataframe(
+                result,
+                use_container_width=True,
+                hide_index=True
+            )
+
+            st.download_button(
+                "⬇️ Download Generated Product Forecast CSV",
+                data=result.to_csv(index=False).encode("utf-8"),
+                file_name="ForecastIQ_Product_Based_Forecast.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+
+            st.info(
+                "Scenario note: the supplied product forecast CSV is the base forecast. "
+                "Price, discount, promotion, stock, holiday, local-event and competitor-price "
+                "inputs are applied as transparent scenario adjustments; they do not retrain "
+                "or replace the final Trial 84 Log-XGBoost model."
+            )
+
+
+# ============================================================
+# REGION-BASED FORECAST
+# ============================================================
+
+elif page == "📍 Region-Based Forecast":
+
+    st.header("📍 Region-Based Forecast")
+    st.caption(
+        "Create a region/location forecast for a selected date and horizon."
+    )
+
+    if region_forecast_df is None or region_forecast_df.empty:
+        st.error(
+            "Region forecast data is not available. Make sure "
+            "region_based_forecast_2026_2027.csv is in the same GitHub folder "
+            "as sales_forecast_app.py."
+        )
+    elif not {"Date", "Store_Location", "Predicted_Units_Sold"}.issubset(region_forecast_df.columns):
+        st.error(
+            "Region forecast CSV must contain Date, Store_Location and Predicted_Units_Sold."
+        )
+    else:
+        region_options = sorted(
+            region_forecast_df["Store_Location"].dropna().unique()
+        )
+
+        selected_region = st.selectbox(
+            "📍 Region / Location",
+            region_options,
+            key="region_forecast_region"
+        )
+
+        forecast_min = region_forecast_df["Date"].min().date()
+        forecast_max = region_forecast_df["Date"].max().date()
+
+        default_date = pd.Timestamp("2026-09-15").date()
+        default_date = min(max(default_date, forecast_min), forecast_max)
+
+        current_date = st.date_input(
+            "📅 Current Date",
+            value=default_date,
+            min_value=forecast_min,
+            max_value=forecast_max,
+            key="region_forecast_current_date"
         )
 
         forecast_horizon = st.slider(
-            "🔮 Forecast Horizon (days)",
+            "🔮 Forecast Horizon",
             min_value=1,
             max_value=90,
             value=30,
@@ -789,179 +784,96 @@ elif page == "📍 Region-Based Forecast":
             key="region_forecast_horizon"
         )
 
-        if st.button("🔮 Generate Forecast", type="primary", key="generate_region_forecast"):
-            end_date = min(
-                pd.Timestamp(current_date) + pd.Timedelta(days=forecast_horizon - 1),
-                region_forecast_df["Date"].max()
-            )
+        generate_region = st.button(
+            "🔮 Generate Region Forecast",
+            type="primary",
+            use_container_width=True,
+            key="generate_region_forecast"
+        )
 
+        if generate_region:
             result = region_forecast_df[
-                (region_forecast_df["Store_Location"].astype(str) == str(selected_region))
-                & (region_forecast_df["Date"] >= pd.Timestamp(current_date))
-                & (region_forecast_df["Date"] <= end_date)
+                region_forecast_df["Store_Location"] == selected_region
+            ].copy()
+            result = result.sort_values("Date")
+
+            start_ts = pd.Timestamp(current_date)
+            end_ts = start_ts + pd.Timedelta(days=forecast_horizon - 1)
+
+            result = result[
+                (result["Date"] >= start_ts) &
+                (result["Date"] <= end_ts)
             ].copy()
 
             if result.empty:
-                st.warning("No regional forecast is available for the selected location/date range.")
+                st.warning("No region forecast is available for the selected date/horizon.")
             else:
                 result["Region"] = selected_region
+                result["Current_Date"] = pd.Timestamp(current_date)
+                result["Forecast_Horizon_Days"] = forecast_horizon
+                result = result[
+                    [
+                        "Date",
+                        "Region",
+                        "Current_Date",
+                        "Forecast_Horizon_Days",
+                        "Predicted_Units_Sold"
+                    ]
+                ]
 
-                st.success("Region forecast generated successfully!")
+                st.session_state["region_generated_forecast"] = result
 
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Total Forecast Units", f"{result['Predicted_Units_Sold'].sum():,.0f}")
-                m2.metric("Average Daily Forecast", f"{result['Predicted_Units_Sold'].mean():,.2f}")
-                m3.metric("Peak Daily Forecast", f"{result['Predicted_Units_Sold'].max():,.0f}")
+        if "region_generated_forecast" in st.session_state:
+            result = st.session_state["region_generated_forecast"]
 
-                st.subheader("📈 Forecast")
-                st.line_chart(
-                    result.set_index("Date")["Predicted_Units_Sold"],
-                    use_container_width=True
-                )
+            st.success("Region forecast generated successfully!")
 
-                st.subheader("📋 Forecast Details")
-                display_cols = ["Date", "Region", "Store_Location", "Predicted_Units_Sold"]
-                display_cols = [c for c in display_cols if c in result.columns]
-                st.dataframe(result[display_cols], use_container_width=True, hide_index=True)
-
-                csv_data = result[display_cols].to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "📥 Download Forecast CSV",
-                    data=csv_data,
-                    file_name=f"{selected_region}_region_forecast.csv",
-                    mime="text/csv",
-                    key="download_region_forecast_csv"
-                )
-
-
-if page == "Executive Dashboard":
-    # Product and region forecasts are available from the sidebar.
-    # The normal default page remains Executive Dashboard.
-
-    st.header("📦 Product-Based Forecast")
-    st.caption(
-        f"Forecast for selected product: {selected_forecast_product}"
-    )
-
-    if product_forecast_df is not None and "Product_Name" in product_forecast_df.columns:
-        product_result = product_forecast_df[
-            product_forecast_df["Product_Name"] == selected_forecast_product
-        ].copy()
-
-        if "Date" in product_result.columns:
-            product_result = product_result.sort_values("Date")
-
-        if "Predicted_Units_Sold" in product_result.columns and len(product_result) > 0:
             c1, c2, c3 = st.columns(3)
 
             with c1:
                 st.metric(
-                    "Total Product Forecast",
-                    f"{product_result['Predicted_Units_Sold'].sum():,.0f} units"
+                    "Total Forecast",
+                    f"{result['Predicted_Units_Sold'].sum():,.0f} units"
                 )
 
             with c2:
                 st.metric(
                     "Average Daily Forecast",
-                    f"{product_result['Predicted_Units_Sold'].mean():,.2f}"
+                    f"{result['Predicted_Units_Sold'].mean():,.2f}"
                 )
 
             with c3:
                 st.metric(
                     "Peak Daily Forecast",
-                    f"{product_result['Predicted_Units_Sold'].max():,.0f} units"
+                    f"{result['Predicted_Units_Sold'].max():,.0f} units"
                 )
 
-            if "Date" in product_result.columns:
-                st.line_chart(
-                    product_result.set_index("Date")[
-                        "Predicted_Units_Sold"
-                    ],
-                    height=300
-                )
+            st.subheader("📈 Generated Region Forecast")
+            st.line_chart(
+                result.set_index("Date")["Predicted_Units_Sold"],
+                height=400
+            )
 
             st.dataframe(
-                product_result,
+                result,
                 use_container_width=True,
                 hide_index=True
             )
-        else:
-            st.info(
-                "No product-specific forecast data is available for the selected product."
+
+            st.download_button(
+                "⬇️ Download Generated Region Forecast CSV",
+                data=result.to_csv(index=False).encode("utf-8"),
+                file_name="ForecastIQ_Region_Based_Forecast.csv",
+                mime="text/csv",
+                use_container_width=True
             )
-    else:
-        st.info(
-            "Product forecast CSV is not available or does not contain Product_Name yet."
-        )
-
-    st.divider()
-
-    # ========================================================
-    # 1. REGION-BASED FORECAST
-    # ========================================================
-
-    st.header("🌍 Region-Based Forecast")
-    st.caption(
-        f"Forecast for selected region: {selected_forecast_region}"
-    )
-
-    if region_forecast_df is not None and "Store_Location" in region_forecast_df.columns:
-        region_result = region_forecast_df[
-            region_forecast_df["Store_Location"] == selected_forecast_region
-        ].copy()
-
-        if "Date" in region_result.columns:
-            region_result = region_result.sort_values("Date")
-
-        if "Predicted_Units_Sold" in region_result.columns and len(region_result) > 0:
-            c1, c2, c3 = st.columns(3)
-
-            with c1:
-                st.metric(
-                    "Total Region Forecast",
-                    f"{region_result['Predicted_Units_Sold'].sum():,.0f} units"
-                )
-
-            with c2:
-                st.metric(
-                    "Average Daily Forecast",
-                    f"{region_result['Predicted_Units_Sold'].mean():,.2f}"
-                )
-
-            with c3:
-                st.metric(
-                    "Peak Daily Forecast",
-                    f"{region_result['Predicted_Units_Sold'].max():,.0f} units"
-                )
-
-            if "Date" in region_result.columns:
-                st.line_chart(
-                    region_result.set_index("Date")[
-                        "Predicted_Units_Sold"
-                    ],
-                    height=300
-                )
-
-            st.dataframe(
-                region_result,
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.info(
-                "No region-specific forecast data is available for the selected region."
-            )
-    else:
-        st.info(
-            "Region forecast CSV is not available or does not contain Store_Location yet."
-        )
-
-    st.divider()
 
 
-    # ========================================================
-    # 2. EXECUTIVE DASHBOARD
-    # ========================================================
+# ============================================================
+# EXECUTIVE DASHBOARD
+# ============================================================
+
+elif page == "Executive Dashboard":
 
     st.header("Executive Dashboard")
 
@@ -1037,7 +949,6 @@ if page == "Executive Dashboard":
     st.divider()
 
     st.subheader("📈 Overall Daily Sales Trend")
-
     st.line_chart(daily, height=400)
 
     peak_day = daily.idxmax()
