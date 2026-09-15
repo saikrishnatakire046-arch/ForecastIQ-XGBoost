@@ -1,0 +1,8 @@
+streamlit
+pandas
+numpy
+joblib
+prophet
+scikit-learn
+xgboost
+openpyxl
