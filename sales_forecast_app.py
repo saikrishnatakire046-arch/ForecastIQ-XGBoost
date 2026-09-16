@@ -21,32 +21,19 @@ st.set_page_config(
 # FILE PATHS
 # ============================================================
 
-BASE_DIR = Path(__file__).parent
-
-# IMPORTANT:
-# Sales data is loaded from the specified Windows path
 # ============================================================
 # FILE PATHS
 # ============================================================
 
 BASE_DIR = Path(__file__).parent
 
-DATA_PATH = Path(
-    r"C:\Users\lenovo\ForecastIQ\sales_data.csv"
-)
+DATA_PATH = BASE_DIR / "sales_data.csv"
 
-FORECAST_PATH = Path(
-    r"C:\Users\lenovo\Downloads\new_overall_forecast.csv"
-)
+FORECAST_PATH = BASE_DIR / "new_overall_forecast.csv"
 
-PRODUCT_FORECAST_PATH = Path(
-    r"C:\Users\lenovo\Downloads\new_product_forecast.csv"
-)
+PRODUCT_FORECAST_PATH = BASE_DIR / "new_product_forecast.csv"
 
-REGION_FORECAST_PATH = Path(
-    r"C:\Users\lenovo\Downloads\new_region_forecast.csv.csv"
-)
-
+REGION_FORECAST_PATH = BASE_DIR / "new_region_forecast.csv"
 
 # ============================================================
 # CONSTANTS
