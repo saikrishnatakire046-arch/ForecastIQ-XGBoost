@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -84,9 +83,11 @@ MODEL_FEATURES = [
 
 @st.cache_data
 def load_data():
+
     data = pd.read_csv(DATA_PATH)
 
     if "Date" in data.columns:
+
         data["Date"] = pd.to_datetime(
             data["Date"],
             errors="coerce"
@@ -97,12 +98,27 @@ def load_data():
 
 @st.cache_data
 def load_overall_forecast():
+
     forecast = pd.read_csv(FORECAST_PATH)
 
     if "Date" in forecast.columns:
+
         forecast["Date"] = pd.to_datetime(
             forecast["Date"],
             errors="coerce"
+        )
+
+    if "Predicted_Units_Sold" in forecast.columns:
+
+        forecast["Predicted_Units_Sold"] = (
+            pd.to_numeric(
+                forecast["Predicted_Units_Sold"],
+                errors="coerce"
+            )
+            .fillna(0)
+            .clip(lower=0)
+            .round()
+            .astype(int)
         )
 
     return forecast
@@ -110,12 +126,29 @@ def load_overall_forecast():
 
 @st.cache_data
 def load_product_forecast():
-    forecast = pd.read_csv(PRODUCT_FORECAST_PATH)
+
+    forecast = pd.read_csv(
+        PRODUCT_FORECAST_PATH
+    )
 
     if "Date" in forecast.columns:
+
         forecast["Date"] = pd.to_datetime(
             forecast["Date"],
             errors="coerce"
+        )
+
+    if "Predicted_Units_Sold" in forecast.columns:
+
+        forecast["Predicted_Units_Sold"] = (
+            pd.to_numeric(
+                forecast["Predicted_Units_Sold"],
+                errors="coerce"
+            )
+            .fillna(0)
+            .clip(lower=0)
+            .round()
+            .astype(int)
         )
 
     return forecast
@@ -123,12 +156,29 @@ def load_product_forecast():
 
 @st.cache_data
 def load_region_forecast():
-    forecast = pd.read_csv(REGION_FORECAST_PATH)
+
+    forecast = pd.read_csv(
+        REGION_FORECAST_PATH
+    )
 
     if "Date" in forecast.columns:
+
         forecast["Date"] = pd.to_datetime(
             forecast["Date"],
             errors="coerce"
+        )
+
+    if "Predicted_Units_Sold" in forecast.columns:
+
+        forecast["Predicted_Units_Sold"] = (
+            pd.to_numeric(
+                forecast["Predicted_Units_Sold"],
+                errors="coerce"
+            )
+            .fillna(0)
+            .clip(lower=0)
+            .round()
+            .astype(int)
         )
 
     return forecast
@@ -139,31 +189,47 @@ def load_region_forecast():
 # ============================================================
 
 try:
+
     df = load_data()
+
 except Exception as e:
-    st.error(f"Unable to load sales_data.csv: {e}")
+
+    st.error(
+        f"Unable to load sales_data.csv: {e}"
+    )
+
     st.stop()
 
 
 try:
+
     forecast_df = load_overall_forecast()
+
 except Exception as e:
+
     st.error(
         "Unable to load future_sales_forecast_2026_2027.csv. "
         f"Error: {e}"
     )
+
     st.stop()
 
 
 try:
+
     product_forecast_df = load_product_forecast()
+
 except Exception:
+
     product_forecast_df = pd.DataFrame()
 
 
 try:
+
     region_forecast_df = load_region_forecast()
+
 except Exception:
+
     region_forecast_df = pd.DataFrame()
 
 
@@ -175,7 +241,9 @@ historical_df = df[
     df["Date"] <= HISTORICAL_CUTOFF
 ].copy()
 
-historical_df = historical_df.sort_values("Date")
+historical_df = historical_df.sort_values(
+    "Date"
+)
 
 
 # ============================================================
@@ -183,12 +251,15 @@ historical_df = historical_df.sort_values("Date")
 # ============================================================
 
 if "Units_Sold" in historical_df.columns:
+
     historical_df["Units_Sold"] = pd.to_numeric(
         historical_df["Units_Sold"],
         errors="coerce"
     ).fillna(0)
 
+
 if "Revenue" in historical_df.columns:
+
     historical_df["Revenue"] = pd.to_numeric(
         historical_df["Revenue"],
         errors="coerce"
@@ -200,7 +271,9 @@ if "Revenue" in historical_df.columns:
 # ============================================================
 
 def safe_sum(data, column):
+
     if column not in data.columns:
+
         return 0
 
     return pd.to_numeric(
@@ -210,7 +283,9 @@ def safe_sum(data, column):
 
 
 def safe_mean(data, column):
+
     if column not in data.columns or len(data) == 0:
+
         return 0
 
     return pd.to_numeric(
@@ -220,7 +295,9 @@ def safe_mean(data, column):
 
 
 def weekly_sales(data):
+
     if data.empty:
+
         return pd.DataFrame()
 
     temp = data.copy()
@@ -244,11 +321,16 @@ def weekly_sales(data):
 
 
 def daily_sales(data):
+
     if data.empty:
+
         return pd.DataFrame()
 
     result = (
-        data.groupby("Date", as_index=False)
+        data.groupby(
+            "Date",
+            as_index=False
+        )
         .agg(
             Units_Sold=("Units_Sold", "sum"),
             Revenue=("Revenue", "sum")
@@ -260,48 +342,79 @@ def daily_sales(data):
 
 
 def group_units(data, column):
+
     if column not in data.columns:
+
         return pd.DataFrame()
 
     return (
-        data.groupby(column, dropna=False)["Units_Sold"]
+        data.groupby(
+            column,
+            dropna=False
+        )["Units_Sold"]
         .sum()
-        .sort_values(ascending=False)
+        .sort_values(
+            ascending=False
+        )
         .reset_index()
     )
 
 
 def group_revenue(data, column):
+
     if column not in data.columns:
+
         return pd.DataFrame()
 
     return (
-        data.groupby(column, dropna=False)["Revenue"]
+        data.groupby(
+            column,
+            dropna=False
+        )["Revenue"]
         .sum()
-        .sort_values(ascending=False)
+        .sort_values(
+            ascending=False
+        )
         .reset_index()
     )
 
 
-def top_group(data, group_columns, metric="Units_Sold"):
+def top_group(
+    data,
+    group_columns,
+    metric="Units_Sold"
+):
+
     valid_columns = [
-        c for c in group_columns
+        c
+        for c in group_columns
         if c in data.columns
     ]
 
-    if not valid_columns or metric not in data.columns:
+    if (
+        not valid_columns
+        or metric not in data.columns
+    ):
+
         return pd.DataFrame()
 
     return (
-        data.groupby(valid_columns)[metric]
+        data.groupby(
+            valid_columns
+        )[metric]
         .sum()
-        .sort_values(ascending=False)
+        .sort_values(
+            ascending=False
+        )
         .reset_index()
     )
 
 
 def download_csv(data, filename):
-    csv_data = data.to_csv(index=False).encode("utf-8")
+
+    csv_data = data.to_csv(
+        index=False
+    ).encode("utf-8")
 
     st.download_button(
         label="⬇️ Download CSV",
@@ -312,12 +425,14 @@ def download_csv(data, filename):
 
 
 def download_excel(data, filename):
+
     output = BytesIO()
 
     with pd.ExcelWriter(
         output,
         engine="openpyxl"
     ) as writer:
+
         data.to_excel(
             writer,
             index=False,
@@ -336,27 +451,34 @@ def download_excel(data, filename):
 
 
 def money(value):
+
     return f"₹{value:,.0f}"
 
 
 def number(value):
+
     return f"{value:,.0f}"
 
 
 def percentage(value):
+
     return f"{value:.2f}%"
 
 
 def safe_float(value, default=0.0):
+
     try:
+
         value = float(value)
 
         if not np.isfinite(value):
+
             return default
 
         return value
 
     except Exception:
+
         return default
 
 
@@ -364,17 +486,24 @@ def safe_float(value, default=0.0):
 # SCENARIO CALCULATION
 # ============================================================
 
-def estimate_price_elasticity(data, product=None):
+def estimate_price_elasticity(
+    data,
+    product=None
+):
 
     temp = data.copy()
 
-    if product is not None and "Product_Name" in temp.columns:
+    if (
+        product is not None
+        and "Product_Name" in temp.columns
+    ):
 
         subset = temp[
             temp["Product_Name"] == product
         ].copy()
 
         if len(subset) >= 20:
+
             temp = subset
 
     required = [
@@ -382,7 +511,11 @@ def estimate_price_elasticity(data, product=None):
         "Units_Sold"
     ]
 
-    if not all(c in temp.columns for c in required):
+    if not all(
+        c in temp.columns
+        for c in required
+    ):
+
         return -0.50
 
     temp = temp[
@@ -390,17 +523,24 @@ def estimate_price_elasticity(data, product=None):
     ].dropna()
 
     temp = temp[
-        (temp["Price"] > 0) &
+        (temp["Price"] > 0)
+        &
         (temp["Units_Sold"] > 0)
     ]
 
     if len(temp) < 20:
+
         return -0.50
 
     try:
 
-        x = np.log(temp["Price"].values)
-        y = np.log(temp["Units_Sold"].values)
+        x = np.log(
+            temp["Price"].values
+        )
+
+        y = np.log(
+            temp["Units_Sold"].values
+        )
 
         elasticity = np.polyfit(
             x,
@@ -419,6 +559,7 @@ def estimate_price_elasticity(data, product=None):
         return elasticity
 
     except Exception:
+
         return -0.50
 
 
@@ -441,11 +582,13 @@ def scenario_multiplier(
         product is not None
         and "Product_Name" in subset.columns
     ):
+
         product_subset = subset[
             subset["Product_Name"] == product
         ]
 
         if len(product_subset) > 0:
+
             subset = product_subset
 
     multiplier = 1.0
@@ -472,7 +615,9 @@ def scenario_multiplier(
             and price > 0
         ):
 
-            price_ratio = price / historical_price
+            price_ratio = (
+                price / historical_price
+            )
 
             price_effect = (
                 price_ratio ** elasticity
@@ -515,7 +660,9 @@ def scenario_multiplier(
             and normal > 0
         ):
 
-            discount_ratio = discounted / normal
+            discount_ratio = (
+                discounted / normal
+            )
 
             requested_discount = np.clip(
                 discount / 100,
@@ -563,9 +710,11 @@ def scenario_multiplier(
                 )
 
             else:
+
                 multiplier *= 1.05
 
         else:
+
             multiplier *= 1.05
 
     # --------------------------------------------------------
@@ -585,6 +734,7 @@ def scenario_multiplier(
     # --------------------------------------------------------
 
     if holiday == 1:
+
         multiplier *= 1.08
 
     # --------------------------------------------------------
@@ -592,6 +742,7 @@ def scenario_multiplier(
     # --------------------------------------------------------
 
     if local_event == 1:
+
         multiplier *= 1.05
 
     # --------------------------------------------------------
@@ -636,7 +787,9 @@ def scenario_multiplier(
             )
 
             multiplier *= np.clip(
-                1 + 0.10 * (marketing_ratio - 1),
+                1 + 0.10 * (
+                    marketing_ratio - 1
+                ),
                 0.85,
                 1.25
             )
@@ -667,15 +820,30 @@ def prepare_overall_forecast(
         errors="coerce"
     )
 
+    temp["Predicted_Units_Sold"] = (
+        pd.to_numeric(
+            temp["Predicted_Units_Sold"],
+            errors="coerce"
+        )
+        .fillna(0)
+        .clip(lower=0)
+        .round()
+        .astype(int)
+    )
+
     temp = temp[
         temp["Date"] >= start_date
     ].copy()
 
-    temp = temp.sort_values("Date")
+    temp = temp.sort_values(
+        "Date"
+    )
 
     end_date = (
         start_date
-        + pd.Timedelta(days=horizon - 1)
+        + pd.Timedelta(
+            days=horizon - 1
+        )
     )
 
     temp = temp[
@@ -699,6 +867,17 @@ def prepare_product_forecast(
         errors="coerce"
     )
 
+    temp["Predicted_Units_Sold"] = (
+        pd.to_numeric(
+            temp["Predicted_Units_Sold"],
+            errors="coerce"
+        )
+        .fillna(0)
+        .clip(lower=0)
+        .round()
+        .astype(int)
+    )
+
     temp = temp[
         temp["Date"] >= start_date
     ].copy()
@@ -708,20 +887,25 @@ def prepare_product_forecast(
         and product != "All Products"
         and "Product_Name" in temp.columns
     ):
+
         temp = temp[
             temp["Product_Name"] == product
         ].copy()
 
     end_date = (
         start_date
-        + pd.Timedelta(days=horizon - 1)
+        + pd.Timedelta(
+            days=horizon - 1
+        )
     )
 
     temp = temp[
         temp["Date"] <= end_date
     ].copy()
 
-    return temp.sort_values("Date")
+    return temp.sort_values(
+        "Date"
+    )
 
 
 def prepare_region_forecast(
@@ -738,6 +922,17 @@ def prepare_region_forecast(
         errors="coerce"
     )
 
+    temp["Predicted_Units_Sold"] = (
+        pd.to_numeric(
+            temp["Predicted_Units_Sold"],
+            errors="coerce"
+        )
+        .fillna(0)
+        .clip(lower=0)
+        .round()
+        .astype(int)
+    )
+
     temp = temp[
         temp["Date"] >= start_date
     ].copy()
@@ -747,27 +942,34 @@ def prepare_region_forecast(
         and region != "All Regions"
         and "Store_Location" in temp.columns
     ):
+
         temp = temp[
             temp["Store_Location"] == region
         ].copy()
 
     end_date = (
         start_date
-        + pd.Timedelta(days=horizon - 1)
+        + pd.Timedelta(
+            days=horizon - 1
+        )
     )
 
     temp = temp[
         temp["Date"] <= end_date
     ].copy()
 
-    return temp.sort_values("Date")
+    return temp.sort_values(
+        "Date"
+    )
 
 
 # ============================================================
 # SIDEBAR
 # ============================================================
 
-st.sidebar.title("📈 ForecastIQ")
+st.sidebar.title(
+    "📈 ForecastIQ"
+)
 
 st.sidebar.caption(
     "Daily Sales Forecasting Dashboard"
@@ -824,42 +1026,54 @@ Final Trial 84 Log-XGBoost
 )
 
 
-# =================================================
-
 # ============================================================
 # PAGE 1 — PRODUCT-BASED FORECAST
 # ============================================================
 
 if page == "📦 Product-Based Forecast":
 
-    st.title("📦 Product-Based Forecast")
+    st.title(
+        "📦 Product-Based Forecast"
+    )
 
     st.caption(
-        "Generate a product-level forecast using the selected "
-        "product, store and business inputs."
+        "View the product-level forecast generated by the "
+        "Final Trial 84 Log-XGBoost model."
     )
 
     if product_forecast_df.empty:
+
         st.error(
             "product_based_forecast_2026_2027.csv "
             "could not be loaded."
         )
+
         st.stop()
 
     required = [
         "Date",
+        "Product_ID",
         "Product_Name",
         "Predicted_Units_Sold"
     ]
 
     missing = [
-        c for c in required
+        c
+        for c in required
         if c not in product_forecast_df.columns
     ]
 
     if missing:
-        st.error(f"Missing columns: {missing}")
-        st.write("Columns found:", list(product_forecast_df.columns))
+
+        st.error(
+            f"Missing columns: {missing}"
+        )
+
+        st.write(
+            "Columns found:",
+            list(product_forecast_df.columns)
+        )
+
         st.stop()
 
     product_forecast_df["Date"] = pd.to_datetime(
@@ -867,40 +1081,55 @@ if page == "📦 Product-Based Forecast":
         errors="coerce"
     )
 
-    product_forecast_df["Predicted_Units_Sold"] = pd.to_numeric(
-        product_forecast_df["Predicted_Units_Sold"],
-        errors="coerce"
-    ).fillna(0)
-
-    # --------------------------------------------------------
-    # PRODUCT AND STORE OPTIONS
-    # --------------------------------------------------------
+    product_forecast_df["Predicted_Units_Sold"] = (
+        pd.to_numeric(
+            product_forecast_df[
+                "Predicted_Units_Sold"
+            ],
+            errors="coerce"
+        )
+        .fillna(0)
+        .clip(lower=0)
+        .round()
+        .astype(int)
+    )
 
     products = sorted(
-        historical_df["Product_Name"].dropna().astype(str).unique()
-    ) if "Product_Name" in historical_df.columns else []
+        product_forecast_df[
+            "Product_Name"
+        ]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
 
     stores = sorted(
-        historical_df["Store_Location"].dropna().astype(str).unique()
+        historical_df[
+            "Store_Location"
+        ]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
     ) if "Store_Location" in historical_df.columns else []
 
     if not products:
-        st.error("No products are available in the historical data.")
+
+        st.error(
+            "No products are available in the product forecast CSV."
+        )
+
         st.stop()
 
-    if not stores:
-        st.error("No stores/locations are available in the historical data.")
-        st.stop()
-
-    # --------------------------------------------------------
-    # INPUT CONTROLS
-    # --------------------------------------------------------
-
-    st.subheader("Forecast Controls")
+    st.subheader(
+        "Forecast Controls"
+    )
 
     c1, c2, c3 = st.columns(3)
 
     with c1:
+
         selected_product = st.selectbox(
             "📦 Product",
             products,
@@ -908,16 +1137,29 @@ if page == "📦 Product-Based Forecast":
         )
 
     with c2:
-        selected_store = st.selectbox(
-            "🏪 Store",
-            stores,
-            key="product_forecast_store"
-        )
+
+        if stores:
+
+            selected_store = st.selectbox(
+                "🏪 Store",
+                stores,
+                key="product_forecast_store"
+            )
+
+        else:
+
+            selected_store = None
+
+            st.info(
+                "Store information is not present "
+                "in the product forecast CSV."
+            )
 
     with c3:
+
         current_date = st.date_input(
             "📅 Current Date",
-            value=pd.Timestamp.today().date(),
+            value=HISTORICAL_CUTOFF.date(),
             min_value=HISTORICAL_CUTOFF.date(),
             key="product_forecast_date"
         )
@@ -925,15 +1167,24 @@ if page == "📦 Product-Based Forecast":
     c1, c2, c3 = st.columns(3)
 
     with c1:
+
         price_default = pd.to_numeric(
             historical_df.loc[
-                historical_df["Product_Name"].astype(str) == str(selected_product),
+                historical_df[
+                    "Product_Name"
+                ].astype(str)
+                == str(selected_product),
                 "Price"
             ],
             errors="coerce"
         ).median() if "Price" in historical_df.columns else np.nan
 
-        if not np.isfinite(price_default) if pd.notna(price_default) else True:
+        if (
+            not np.isfinite(price_default)
+            if pd.notna(price_default)
+            else True
+        ):
+
             price_default = 100.0
 
         price = st.number_input(
@@ -945,15 +1196,24 @@ if page == "📦 Product-Based Forecast":
         )
 
     with c2:
+
         discount_default = pd.to_numeric(
             historical_df.loc[
-                historical_df["Product_Name"].astype(str) == str(selected_product),
+                historical_df[
+                    "Product_Name"
+                ].astype(str)
+                == str(selected_product),
                 "Discount_Percentage"
             ],
             errors="coerce"
         ).median() if "Discount_Percentage" in historical_df.columns else np.nan
 
-        if not np.isfinite(discount_default) if pd.notna(discount_default) else True:
+        if (
+            not np.isfinite(discount_default)
+            if pd.notna(discount_default)
+            else True
+        ):
+
             discount_default = 0.0
 
         discount = st.number_input(
@@ -966,6 +1226,7 @@ if page == "📦 Product-Based Forecast":
         )
 
     with c3:
+
         promotion = st.selectbox(
             "📢 Promotion",
             ["No", "Yes"],
@@ -975,6 +1236,7 @@ if page == "📦 Product-Based Forecast":
     c1, c2, c3 = st.columns(3)
 
     with c1:
+
         stock = st.slider(
             "📦 Stock Availability",
             min_value=0,
@@ -984,6 +1246,7 @@ if page == "📦 Product-Based Forecast":
         )
 
     with c2:
+
         holiday = st.selectbox(
             "🎉 Holiday",
             ["No", "Yes"],
@@ -991,6 +1254,7 @@ if page == "📦 Product-Based Forecast":
         )
 
     with c3:
+
         local_event = st.selectbox(
             "📍 Local Event",
             ["No", "Yes"],
@@ -1000,16 +1264,27 @@ if page == "📦 Product-Based Forecast":
     c1, c2, c3 = st.columns(3)
 
     with c1:
+
         competitor_default = pd.to_numeric(
             historical_df.loc[
-                historical_df["Product_Name"].astype(str) == str(selected_product),
+                historical_df[
+                    "Product_Name"
+                ].astype(str)
+                == str(selected_product),
                 "Competitor_Price"
             ],
             errors="coerce"
         ).median() if "Competitor_Price" in historical_df.columns else np.nan
 
-        if not np.isfinite(competitor_default) if pd.notna(competitor_default) else True:
-            competitor_default = float(price)
+        if (
+            not np.isfinite(competitor_default)
+            if pd.notna(competitor_default)
+            else True
+        ):
+
+            competitor_default = float(
+                price
+            )
 
         competitor_price = st.number_input(
             "💰 Competitor Price",
@@ -1020,6 +1295,7 @@ if page == "📦 Product-Based Forecast":
         )
 
     with c2:
+
         horizon = st.number_input(
             "🔮 Forecast Horizon (days)",
             min_value=1,
@@ -1045,7 +1321,8 @@ if page == "📦 Product-Based Forecast":
     if generate_product:
 
         start_date = (
-            pd.Timestamp(current_date) + pd.Timedelta(days=1)
+            pd.Timestamp(current_date)
+            + pd.Timedelta(days=1)
         )
 
         base = prepare_product_forecast(
@@ -1056,139 +1333,157 @@ if page == "📦 Product-Based Forecast":
         )
 
         if base.empty:
+
             st.warning(
-                "No product forecast is available after the selected "
-                "Current Date for the requested Horizon."
+                "No product forecast is available after the "
+                "selected Current Date for the requested Horizon."
             )
+
         else:
+
+            # =================================================
+            # IMPORTANT FIX
+            # =================================================
+            #
+            # The notebook already generated the actual
+            # product-level forecast.
+            #
+            # DO NOT allocate it again by store share.
+            #
+            # The product CSV contains:
+            #
+            # Date
+            # Product_ID
+            # Product_Name
+            # Predicted_Units_Sold
+            #
+            # Therefore the value below is the actual model
+            # forecast and must be displayed directly.
+            # =================================================
 
             result = base.copy()
 
-            # Historical product/store share is used only to allocate
-            # the existing product forecast to the selected store.
-            store_share = 1.0
-
-            if (
-                "Product_Name" in historical_df.columns
-                and "Store_Location" in historical_df.columns
-            ):
-                product_history = historical_df[
-                    historical_df["Product_Name"].astype(str)
-                    == str(selected_product)
-                ].copy()
-
-                product_total = safe_sum(
-                    product_history,
-                    "Units_Sold"
-                )
-
-                store_total = safe_sum(
-                    product_history[
-                        product_history["Store_Location"].astype(str)
-                        == str(selected_store)
-                    ],
-                    "Units_Sold"
-                )
-
-                if product_total > 0:
-                    store_share = store_total / product_total
-
-                    # A store with no recorded historical sales should
-                    # not make the forecast collapse to zero. Fall back
-                    # to an equal share across the available stores.
-                    if store_share <= 0:
-                        available_stores = (
-                            historical_df["Store_Location"]
-                            .dropna()
-                            .astype(str)
-                            .nunique()
-                        )
-
-                        if available_stores > 0:
-                            store_share = 1.0 / available_stores
-
-            # Use the selected product + store historical records for
-            # the existing business-input scenario calculation.
-            scenario_history = historical_df.copy()
-
-            if "Product_Name" in scenario_history.columns:
-                scenario_history = scenario_history[
-                    scenario_history["Product_Name"].astype(str)
-                    == str(selected_product)
-                ].copy()
-
-            if "Store_Location" in scenario_history.columns:
-                store_history = scenario_history[
-                    scenario_history["Store_Location"].astype(str)
-                    == str(selected_store)
-                ].copy()
-
-                if not store_history.empty:
-                    scenario_history = store_history
-
-            multiplier = scenario_multiplier(
-                scenario_history,
-                None,
-                safe_float(price),
-                safe_float(discount),
-                1 if promotion == "Yes" else 0,
-                safe_float(stock),
-                1 if holiday == "Yes" else 0,
-                1 if local_event == "Yes" else 0,
-                safe_float(competitor_price),
-                safe_float(
-                    pd.to_numeric(
-                        historical_df["Marketing_Spend"],
-                        errors="coerce"
-                    ).median()
-                    if "Marketing_Spend" in historical_df.columns
-                    else 1000
-                )
-            )
-
-            # Allocate the product-level forecast to the selected store.
-            # Keep a minimum of 1 unit whenever the underlying forecast is
-            # positive so small store allocations do not become an entire
-            # column of zeros after integer rounding.
-            allocated_forecast = (
-                result["Predicted_Units_Sold"]
-                * store_share
-                * multiplier
-            ).clip(lower=0)
-
             result["Predicted_Units_Sold"] = (
-                allocated_forecast
+                pd.to_numeric(
+                    result[
+                        "Predicted_Units_Sold"
+                    ],
+                    errors="coerce"
+                )
+                .fillna(0)
+                .clip(lower=0)
                 .round()
                 .astype(int)
             )
 
-            positive_mask = (
-                result["Predicted_Units_Sold"].eq(0)
-                & allocated_forecast.gt(0)
-            )
-
-            result.loc[
-                positive_mask,
-                "Predicted_Units_Sold"
-            ] = 1
-
-            # EXACT requested output columns only.
             result = result[
                 [
                     "Date",
+                    "Product_ID",
+                    "Product_Name",
                     "Predicted_Units_Sold"
                 ]
-            ].rename(
-                columns={"Date": "Forecast_Date"}
+            ].copy()
+
+            result = result.rename(
+                columns={
+                    "Date": "Forecast_Date"
+                }
             )
 
-            st.success("Product forecast generated successfully.")
+            # ------------------------------------------------
+            # SUMMARY
+            # ------------------------------------------------
+
+            total_prediction = (
+                result[
+                    "Predicted_Units_Sold"
+                ].sum()
+            )
+
+            average_prediction = (
+                result[
+                    "Predicted_Units_Sold"
+                ].mean()
+            )
+
+            minimum_prediction = (
+                result[
+                    "Predicted_Units_Sold"
+                ].min()
+            )
+
+            maximum_prediction = (
+                result[
+                    "Predicted_Units_Sold"
+                ].max()
+            )
+
+            c1, c2, c3, c4 = st.columns(4)
+
+            c1.metric(
+                "Total Forecast",
+                number(total_prediction)
+            )
+
+            c2.metric(
+                "Average Daily",
+                f"{average_prediction:,.1f}"
+            )
+
+            c3.metric(
+                "Minimum Daily",
+                number(minimum_prediction)
+            )
+
+            c4.metric(
+                "Maximum Daily",
+                number(maximum_prediction)
+            )
+
+            st.success(
+                "Product forecast generated successfully."
+            )
+
+            st.subheader(
+                f"Forecast for {selected_product}"
+            )
 
             st.dataframe(
                 result,
                 use_container_width=True,
                 height=450,
                 hide_index=True
+            )
+
+            # ------------------------------------------------
+            # PRODUCT FORECAST TREND
+            # ------------------------------------------------
+
+            chart_data = result[
+                [
+                    "Forecast_Date",
+                    "Predicted_Units_Sold"
+                ]
+            ].copy()
+
+            chart_data = (
+                chart_data
+                .groupby(
+                    "Forecast_Date",
+                    as_index=True
+                )[
+                    "Predicted_Units_Sold"
+                ]
+                .sum()
+            )
+
+            st.subheader(
+                "Product Forecast Trend"
+            )
+
+            st.line_chart(
+                chart_data
             )
 
             download_csv(
@@ -1208,17 +1503,22 @@ if page == "📦 Product-Based Forecast":
 
 elif page == "📍 Region-Based Forecast":
 
-    st.title("📍 Region-Based Forecast")
+    st.title(
+        "📍 Region-Based Forecast"
+    )
 
     st.caption(
-        "Generate a region forecast and allocate the regional forecast "
-        "across products using historical regional product shares."
+        "View the region-level forecast generated by the "
+        "Final Trial 84 Log-XGBoost model."
     )
 
     if region_forecast_df.empty:
+
         st.error(
-            "region_based_forecast_2026_2027.csv is not available."
+            "region_based_forecast_2026_2027.csv "
+            "is not available."
         )
+
         st.stop()
 
     required = [
@@ -1228,13 +1528,22 @@ elif page == "📍 Region-Based Forecast":
     ]
 
     missing = [
-        c for c in required
+        c
+        for c in required
         if c not in region_forecast_df.columns
     ]
 
     if missing:
-        st.error(f"Missing columns: {missing}")
-        st.write("Columns found:", list(region_forecast_df.columns))
+
+        st.error(
+            f"Missing columns: {missing}"
+        )
+
+        st.write(
+            "Columns found:",
+            list(region_forecast_df.columns)
+        )
+
         st.stop()
 
     region_forecast_df["Date"] = pd.to_datetime(
@@ -1242,13 +1551,23 @@ elif page == "📍 Region-Based Forecast":
         errors="coerce"
     )
 
-    region_forecast_df["Predicted_Units_Sold"] = pd.to_numeric(
-        region_forecast_df["Predicted_Units_Sold"],
-        errors="coerce"
-    ).fillna(0)
+    region_forecast_df["Predicted_Units_Sold"] = (
+        pd.to_numeric(
+            region_forecast_df[
+                "Predicted_Units_Sold"
+            ],
+            errors="coerce"
+        )
+        .fillna(0)
+        .clip(lower=0)
+        .round()
+        .astype(int)
+    )
 
     regions = sorted(
-        region_forecast_df["Store_Location"]
+        region_forecast_df[
+            "Store_Location"
+        ]
         .dropna()
         .astype(str)
         .unique()
@@ -1256,14 +1575,22 @@ elif page == "📍 Region-Based Forecast":
     )
 
     if not regions:
-        st.error("No regions/locations are available in the forecast file.")
+
+        st.error(
+            "No regions/locations are available "
+            "in the forecast file."
+        )
+
         st.stop()
 
-    st.subheader("Forecast Controls")
+    st.subheader(
+        "Forecast Controls"
+    )
 
     c1, c2, c3 = st.columns(3)
 
     with c1:
+
         selected_region = st.selectbox(
             "📍 Region / Location",
             regions,
@@ -1271,14 +1598,16 @@ elif page == "📍 Region-Based Forecast":
         )
 
     with c2:
+
         current_date = st.date_input(
             "📅 Current Date",
-            value=pd.Timestamp.today().date(),
+            value=HISTORICAL_CUTOFF.date(),
             min_value=HISTORICAL_CUTOFF.date(),
             key="region_forecast_date"
         )
 
     with c3:
+
         horizon = st.number_input(
             "🔮 Forecast Horizon (days)",
             min_value=1,
@@ -1304,7 +1633,8 @@ elif page == "📍 Region-Based Forecast":
     if generate_region:
 
         start_date = (
-            pd.Timestamp(current_date) + pd.Timedelta(days=1)
+            pd.Timestamp(current_date)
+            + pd.Timedelta(days=1)
         )
 
         base = prepare_region_forecast(
@@ -1315,139 +1645,154 @@ elif page == "📍 Region-Based Forecast":
         )
 
         if base.empty:
+
             st.warning(
-                "No region forecast is available after the selected "
-                "Current Date for the requested Horizon."
+                "No region forecast is available after the "
+                "selected Current Date for the requested Horizon."
             )
+
         else:
 
-            # ------------------------------------------------
-            # PRODUCT INFORMATION
-            # ------------------------------------------------
+            # =================================================
+            # IMPORTANT FIX
+            # =================================================
+            #
+            # The notebook already generated the actual
+            # region-level forecast.
+            #
+            # DO NOT redistribute this value across products.
+            #
+            # The region CSV already contains:
+            #
+            # Date
+            # Store_Location
+            # Predicted_Units_Sold
+            #
+            # Therefore we display this forecast directly.
+            # =================================================
 
-            if "Product_Name" not in historical_df.columns:
-                st.error(
-                    "Product_Name is required in sales_data.csv "
-                    "to create the requested region output."
-                )
-                st.stop()
-
-            product_region_history = historical_df.copy()
-
-            if "Store_Location" in product_region_history.columns:
-                product_region_history = product_region_history[
-                    product_region_history["Store_Location"].astype(str)
-                    == str(selected_region)
-                ].copy()
-
-            if product_region_history.empty:
-                st.warning(
-                    "No historical product data is available for "
-                    f"the selected region: {selected_region}."
-                )
-                st.stop()
-
-            product_totals = (
-                product_region_history
-                .groupby("Product_Name")["Units_Sold"]
-                .sum()
-                .sort_values(ascending=False)
-            )
-
-            total_product_units = product_totals.sum()
-
-            if total_product_units <= 0:
-                st.warning(
-                    "Historical product sales for the selected region "
-                    "are not available for allocation."
-                )
-                st.stop()
-
-            # Product ID mapping is taken from the actual dataset when
-            # available. No Product_ID is required in the region CSV.
-            product_id_map = {}
-
-            if "Product_ID" in historical_df.columns:
-                product_id_map = (
-                    historical_df[
-                        ["Product_Name", "Product_ID"]
-                    ]
-                    .dropna(subset=["Product_Name"])
-                    .drop_duplicates("Product_Name")
-                    .set_index("Product_Name")["Product_ID"]
-                    .to_dict()
-                )
-
-            elif "Product_ID" in product_forecast_df.columns:
-                product_id_map = (
-                    product_forecast_df[
-                        ["Product_Name", "Product_ID"]
-                    ]
-                    .dropna(subset=["Product_Name"])
-                    .drop_duplicates("Product_Name")
-                    .set_index("Product_Name")["Product_ID"]
-                    .to_dict()
-                )
-
-            # ------------------------------------------------
-            # ALLOCATE REGIONAL FORECAST TO PRODUCTS
-            # ------------------------------------------------
-
-            rows = []
-
-            for _, fc_row in base.iterrows():
-
-                date_value = fc_row["Date"]
-                region_total = safe_float(
-                    fc_row["Predicted_Units_Sold"]
-                )
-
-                for product_name, product_units in product_totals.items():
-
-                    share = (
-                        product_units / total_product_units
-                    )
-
-                    predicted_units = (
-                        region_total * share
-                    )
-
-                    rows.append({
-                        "Forecast_Date": date_value,
-                        "Product_ID": product_id_map.get(
-                            product_name,
-                            ""
-                        ),
-                        "Product_Name": product_name,
-                        "Predicted_Units_Sold": predicted_units
-                    })
-
-            result = pd.DataFrame(rows)
+            result = base.copy()
 
             result["Predicted_Units_Sold"] = (
-                result["Predicted_Units_Sold"]
+                pd.to_numeric(
+                    result[
+                        "Predicted_Units_Sold"
+                    ],
+                    errors="coerce"
+                )
+                .fillna(0)
                 .clip(lower=0)
                 .round()
                 .astype(int)
             )
 
-            # EXACT requested output columns only.
             result = result[
                 [
-                    "Forecast_Date",
-                    "Product_ID",
-                    "Product_Name",
+                    "Date",
+                    "Store_Location",
                     "Predicted_Units_Sold"
                 ]
-            ]
+            ].copy()
 
-            st.success("Region forecast generated successfully.")
+            result = result.rename(
+                columns={
+                    "Date": "Forecast_Date"
+                }
+            )
+
+            # ------------------------------------------------
+            # SUMMARY
+            # ------------------------------------------------
+
+            total_prediction = (
+                result[
+                    "Predicted_Units_Sold"
+                ].sum()
+            )
+
+            average_prediction = (
+                result[
+                    "Predicted_Units_Sold"
+                ].mean()
+            )
+
+            minimum_prediction = (
+                result[
+                    "Predicted_Units_Sold"
+                ].min()
+            )
+
+            maximum_prediction = (
+                result[
+                    "Predicted_Units_Sold"
+                ].max()
+            )
+
+            c1, c2, c3, c4 = st.columns(4)
+
+            c1.metric(
+                "Total Forecast",
+                number(total_prediction)
+            )
+
+            c2.metric(
+                "Average Daily",
+                f"{average_prediction:,.1f}"
+            )
+
+            c3.metric(
+                "Minimum Daily",
+                number(minimum_prediction)
+            )
+
+            c4.metric(
+                "Maximum Daily",
+                number(maximum_prediction)
+            )
+
+            st.success(
+                "Region forecast generated successfully."
+            )
+
+            st.subheader(
+                f"Forecast for {selected_region}"
+            )
 
             st.dataframe(
                 result,
                 use_container_width=True,
-                height=500,
+                height=450,
                 hide_index=True
+            )
+
+            # ------------------------------------------------
+            # REGION FORECAST TREND
+            # ------------------------------------------------
+
+            chart_data = result[
+                [
+                    "Forecast_Date",
+                    "Predicted_Units_Sold"
+                ]
+            ].copy()
+
+            chart_data = (
+                chart_data
+                .groupby(
+                    "Forecast_Date",
+                    as_index=True
+                )[
+                    "Predicted_Units_Sold"
+                ]
+                .sum()
+            )
+
+            st.subheader(
+                "Region Forecast Trend"
+            )
+
+            st.line_chart(
+                chart_data
             )
 
             download_csv(
@@ -1461,12 +1806,15 @@ elif page == "📍 Region-Based Forecast":
             )
 
 
+# ============================================================
 # PAGE 3 — EXECUTIVE DASHBOARD
 # ============================================================
 
 elif page == "📊 Executive Dashboard":
 
-    st.title("📊 Executive Dashboard")
+    st.title(
+        "📊 Executive Dashboard"
+    )
 
     total_units = safe_sum(
         historical_df,
@@ -1479,10 +1827,12 @@ elif page == "📊 Executive Dashboard":
     )
 
     avg_daily = (
-        daily_sales(historical_df)
-        ["Units_Sold"]
-        .mean()
-        if not daily_sales(historical_df).empty
+        daily_sales(
+            historical_df
+        )["Units_Sold"].mean()
+        if not daily_sales(
+            historical_df
+        ).empty
         else 0
     )
 
@@ -1515,7 +1865,9 @@ elif page == "📊 Executive Dashboard":
 
     st.markdown("---")
 
-    st.subheader("Historical Sales Trend")
+    st.subheader(
+        "Historical Sales Trend"
+    )
 
     daily = daily_sales(
         historical_df
@@ -1529,18 +1881,25 @@ elif page == "📊 Executive Dashboard":
             ]
         )
 
-    st.subheader("Future Forecast")
+    st.subheader(
+        "Future Forecast"
+    )
 
     fc = forecast_df.copy()
 
     if (
         "Date" in fc.columns
-        and "Predicted_Units_Sold" in fc.columns
+        and "Predicted_Units_Sold"
+        in fc.columns
     ):
 
         fc = (
-            fc.groupby("Date", as_index=False)
-            ["Predicted_Units_Sold"]
+            fc.groupby(
+                "Date",
+                as_index=False
+            )[
+                "Predicted_Units_Sold"
+            ]
             .sum()
         )
 
@@ -1555,7 +1914,9 @@ elif page == "📊 Executive Dashboard":
 
 elif page == "Location Intelligence":
 
-    st.title("📍 Location Intelligence")
+    st.title(
+        "📍 Location Intelligence"
+    )
 
     if "Store_Location" not in historical_df.columns:
 
@@ -1570,7 +1931,9 @@ elif page == "Location Intelligence":
             "Store_Location"
         )
 
-        st.subheader("Units Sold by Location")
+        st.subheader(
+            "Units Sold by Location"
+        )
 
         st.bar_chart(
             location_units.set_index(
@@ -1590,7 +1953,9 @@ elif page == "Location Intelligence":
 
 elif page == "Product Intelligence":
 
-    st.title("📦 Product Intelligence")
+    st.title(
+        "📦 Product Intelligence"
+    )
 
     if "Product_Name" not in historical_df.columns:
 
@@ -1605,7 +1970,9 @@ elif page == "Product Intelligence":
             "Product_Name"
         )
 
-        st.subheader("Product Sales")
+        st.subheader(
+            "Product Sales"
+        )
 
         st.bar_chart(
             product_units.set_index(
@@ -1625,14 +1992,21 @@ elif page == "Product Intelligence":
 
 elif page == "Quarter Intelligence":
 
-    st.title("📅 Quarter Intelligence")
+    st.title(
+        "📅 Quarter Intelligence"
+    )
 
     temp = historical_df.copy()
 
-    temp["Year"] = temp["Date"].dt.year
+    temp["Year"] = temp[
+        "Date"
+    ].dt.year
+
     temp["Quarter"] = (
         "Q"
-        + temp["Date"].dt.quarter.astype(str)
+        + temp[
+            "Date"
+        ].dt.quarter.astype(str)
     )
 
     quarterly = (
@@ -1644,15 +2018,19 @@ elif page == "Quarter Intelligence":
     )
 
     quarterly["Period"] = (
-        quarterly["Year"].astype(str)
+        quarterly[
+            "Year"
+        ].astype(str)
         + "-"
-        + quarterly["Quarter"]
+        + quarterly[
+            "Quarter"
+        ]
     )
 
     st.bar_chart(
-        quarterly.set_index("Period")[
-            ["Units_Sold"]
-        ]
+        quarterly.set_index(
+            "Period"
+        )[["Units_Sold"]]
     )
 
     st.dataframe(
@@ -1667,7 +2045,9 @@ elif page == "Quarter Intelligence":
 
 elif page == "Demand Drivers":
 
-    st.title("📈 Demand Drivers")
+    st.title(
+        "📈 Demand Drivers"
+    )
 
     numeric_candidates = [
         "Price",
@@ -1681,18 +2061,23 @@ elif page == "Demand Drivers":
     ]
 
     available = [
-        c for c in numeric_candidates
+        c
+        for c in numeric_candidates
         if c in historical_df.columns
     ]
 
     corr = historical_df[
         available
-    ].corr(numeric_only=True)
+    ].corr(
+        numeric_only=True
+    )
 
     if "Units_Sold" in corr.columns:
 
         demand_corr = (
-            corr["Units_Sold"]
+            corr[
+                "Units_Sold"
+            ]
             .sort_values(
                 ascending=False
             )
@@ -1722,11 +2107,14 @@ elif page == "Demand Drivers":
 
 elif page == "Pricing Intelligence":
 
-    st.title("💰 Pricing Intelligence")
+    st.title(
+        "💰 Pricing Intelligence"
+    )
 
     if (
         "Price" not in historical_df.columns
-        or "Units_Sold" not in historical_df.columns
+        or "Units_Sold"
+        not in historical_df.columns
     ):
 
         st.warning(
@@ -1744,9 +2132,9 @@ elif page == "Pricing Intelligence":
         )
 
         st.scatter_chart(
-            temp.set_index("Price")[
-                ["Units_Sold"]
-            ]
+            temp.set_index(
+                "Price"
+            )[["Units_Sold"]]
         )
 
         st.metric(
@@ -1766,7 +2154,9 @@ elif page == "Pricing Intelligence":
 
 elif page == "Promotion Intelligence":
 
-    st.title("🎯 Promotion Intelligence")
+    st.title(
+        "🎯 Promotion Intelligence"
+    )
 
     if "Promotion_Flag" not in historical_df.columns:
 
@@ -1778,8 +2168,9 @@ elif page == "Promotion Intelligence":
 
         promotion = (
             historical_df
-            .groupby("Promotion_Flag")
-            ["Units_Sold"]
+            .groupby(
+                "Promotion_Flag"
+            )["Units_Sold"]
             .agg(
                 ["sum", "mean", "count"]
             )
@@ -1787,7 +2178,9 @@ elif page == "Promotion Intelligence":
         )
 
         promotion["Promotion"] = (
-            promotion["Promotion_Flag"]
+            promotion[
+                "Promotion_Flag"
+            ]
             .map({
                 0: "No Promotion",
                 1: "Promotion"
@@ -1817,7 +2210,9 @@ elif page == "Promotion Intelligence":
 
 elif page == "Category Intelligence":
 
-    st.title("🏷️ Category Intelligence")
+    st.title(
+        "🏷️ Category Intelligence"
+    )
 
     if "Category" not in historical_df.columns:
 
@@ -1833,7 +2228,9 @@ elif page == "Category Intelligence":
         )
 
         st.bar_chart(
-            category.set_index("Category")
+            category.set_index(
+                "Category"
+            )
         )
 
         st.dataframe(
@@ -1848,7 +2245,9 @@ elif page == "Category Intelligence":
 
 elif page == "Sales Channel Intelligence":
 
-    st.title("🛒 Sales Channel Intelligence")
+    st.title(
+        "🛒 Sales Channel Intelligence"
+    )
 
     if "Sales_Channel" not in historical_df.columns:
 
@@ -1881,9 +2280,14 @@ elif page == "Sales Channel Intelligence":
 
 elif page == "Customer Intelligence":
 
-    st.title("👥 Customer Intelligence")
+    st.title(
+        "👥 Customer Intelligence"
+    )
 
-    if "Customer_Segment" not in historical_df.columns:
+    if (
+        "Customer_Segment"
+        not in historical_df.columns
+    ):
 
         st.warning(
             "Customer_Segment column is not available."
@@ -1914,7 +2318,9 @@ elif page == "Customer Intelligence":
 
 elif page == "Weekly Sales Intelligence":
 
-    st.title("📆 Weekly Sales Intelligence")
+    st.title(
+        "📆 Weekly Sales Intelligence"
+    )
 
     weekly = weekly_sales(
         historical_df
@@ -1933,9 +2339,9 @@ elif page == "Weekly Sales Intelligence":
         )
 
         st.line_chart(
-            weekly.set_index("Date")[
-                ["Units_Sold"]
-            ]
+            weekly.set_index(
+                "Date"
+            )[["Units_Sold"]]
         )
 
         st.subheader(
@@ -1943,9 +2349,9 @@ elif page == "Weekly Sales Intelligence":
         )
 
         st.line_chart(
-            weekly.set_index("Date")[
-                ["Revenue"]
-            ]
+            weekly.set_index(
+                "Date"
+            )[["Revenue"]]
         )
 
         st.dataframe(
@@ -1960,7 +2366,9 @@ elif page == "Weekly Sales Intelligence":
 
 elif page == "Forecast Intelligence":
 
-    st.title("🔮 Forecast Intelligence")
+    st.title(
+        "🔮 Forecast Intelligence"
+    )
 
     fc = forecast_df.copy()
 
@@ -1970,7 +2378,9 @@ elif page == "Forecast Intelligence":
 
     fc["Predicted_Units_Sold"] = (
         pd.to_numeric(
-            fc["Predicted_Units_Sold"],
+            fc[
+                "Predicted_Units_Sold"
+            ],
             errors="coerce"
         )
         .fillna(0)
@@ -1979,18 +2389,21 @@ elif page == "Forecast Intelligence":
     )
 
     total_forecast = (
-        fc["Predicted_Units_Sold"]
-        .sum()
+        fc[
+            "Predicted_Units_Sold"
+        ].sum()
     )
 
     average_forecast = (
-        fc["Predicted_Units_Sold"]
-        .mean()
+        fc[
+            "Predicted_Units_Sold"
+        ].mean()
     )
 
     peak_forecast = (
-        fc["Predicted_Units_Sold"]
-        .max()
+        fc[
+            "Predicted_Units_Sold"
+        ].max()
     )
 
     c1, c2, c3 = st.columns(3)
@@ -2013,8 +2426,9 @@ elif page == "Forecast Intelligence":
     st.line_chart(
         fc.groupby(
             "Date"
-        )["Predicted_Units_Sold"]
-        .sum()
+        )[
+            "Predicted_Units_Sold"
+        ].sum()
     )
 
     st.dataframe(
@@ -2029,7 +2443,9 @@ elif page == "Forecast Intelligence":
 
 elif page == "Model Intelligence":
 
-    st.title("🤖 Model Intelligence")
+    st.title(
+        "🤖 Model Intelligence"
+    )
 
     st.subheader(
         "Final Model"
@@ -2099,10 +2515,13 @@ elif page == "Model Intelligence":
 
 elif page == "Cross-Analysis Explorer":
 
-    st.title("🔍 Cross-Analysis Explorer")
+    st.title(
+        "🔍 Cross-Analysis Explorer"
+    )
 
     dimensions = [
-        c for c in [
+        c
+        for c in [
             "Product_Name",
             "Category",
             "Store_Location",
@@ -2146,7 +2565,9 @@ elif page == "Cross-Analysis Explorer":
         )
 
         st.bar_chart(
-            result.set_index(selected)
+            result.set_index(
+                selected
+            )
         )
 
         st.dataframe(
@@ -2161,7 +2582,9 @@ elif page == "Cross-Analysis Explorer":
 
 elif page == "Demand Opportunity Finder":
 
-    st.title("💡 Demand Opportunity Finder")
+    st.title(
+        "💡 Demand Opportunity Finder"
+    )
 
     if "Product_Name" not in historical_df.columns:
 
@@ -2173,7 +2596,9 @@ elif page == "Demand Opportunity Finder":
 
         product_summary = (
             historical_df
-            .groupby("Product_Name")
+            .groupby(
+                "Product_Name"
+            )
             .agg(
                 Units_Sold=(
                     "Units_Sold",
@@ -2190,10 +2615,16 @@ elif page == "Demand Opportunity Finder":
         product_summary[
             "Revenue_per_Unit"
         ] = (
-            product_summary["Revenue"]
+            product_summary[
+                "Revenue"
+            ]
             /
-            product_summary["Units_Sold"]
-            .replace(0, np.nan)
+            product_summary[
+                "Units_Sold"
+            ].replace(
+                0,
+                np.nan
+            )
         )
 
         product_summary = (
@@ -2226,7 +2657,9 @@ elif page == "Demand Opportunity Finder":
 
 elif page == "Leaderboards":
 
-    st.title("🏆 Leaderboards")
+    st.title(
+        "🏆 Leaderboards"
+    )
 
     if "Product_Name" in historical_df.columns:
 
@@ -2283,10 +2716,13 @@ elif page == "Leaderboards":
 
 elif page == "Product × Location Finder":
 
-    st.title("📦 × 📍 Product × Location Finder")
+    st.title(
+        "📦 × 📍 Product × Location Finder"
+    )
 
     if (
-        "Product_Name" not in historical_df.columns
+        "Product_Name"
+        not in historical_df.columns
         or "Store_Location"
         not in historical_df.columns
     ):
@@ -2312,12 +2748,14 @@ elif page == "Product × Location Finder":
         c1, c2 = st.columns(2)
 
         with c1:
+
             selected_product = st.selectbox(
                 "Product",
                 ["All"] + products
             )
 
         with c2:
+
             selected_location = st.selectbox(
                 "Location",
                 ["All"] + locations
@@ -2328,15 +2766,17 @@ elif page == "Product × Location Finder":
         if selected_product != "All":
 
             temp = temp[
-                temp["Product_Name"]
-                == selected_product
+                temp[
+                    "Product_Name"
+                ] == selected_product
             ]
 
         if selected_location != "All":
 
             temp = temp[
-                temp["Store_Location"]
-                == selected_location
+                temp[
+                    "Store_Location"
+                ] == selected_location
             ]
 
         c1, c2 = st.columns(2)
@@ -2361,14 +2801,16 @@ elif page == "Product × Location Finder":
             )
         )
 
-        daily = daily_sales(temp)
+        daily = daily_sales(
+            temp
+        )
 
         if not daily.empty:
 
             st.line_chart(
-                daily.set_index("Date")[
-                    ["Units_Sold"]
-                ]
+                daily.set_index(
+                    "Date"
+                )[["Units_Sold"]]
             )
 
         st.dataframe(
@@ -2384,7 +2826,9 @@ elif page == "Product × Location Finder":
 
 elif page == "Ask ForecastIQ":
 
-    st.title("💬 Ask ForecastIQ")
+    st.title(
+        "💬 Ask ForecastIQ"
+    )
 
     question = st.text_input(
         "Ask a question about the sales data"
@@ -2400,8 +2844,9 @@ elif page == "Ask ForecastIQ":
 
                 result = (
                     historical_df
-                    .groupby("Product_Name")
-                    ["Units_Sold"]
+                    .groupby(
+                        "Product_Name"
+                    )["Units_Sold"]
                     .sum()
                     .sort_values(
                         ascending=False
@@ -2427,8 +2872,9 @@ elif page == "Ask ForecastIQ":
 
                 result = (
                     historical_df
-                    .groupby("Store_Location")
-                    ["Units_Sold"]
+                    .groupby(
+                        "Store_Location"
+                    )["Units_Sold"]
                     .sum()
                     .sort_values(
                         ascending=False
@@ -2481,7 +2927,9 @@ elif page == "Ask ForecastIQ":
 
 elif page == "Data Explorer":
 
-    st.title("🗃️ Data Explorer")
+    st.title(
+        "🗃️ Data Explorer"
+    )
 
     st.write(
         f"Rows: {historical_df.shape[0]:,}"
@@ -2535,7 +2983,9 @@ elif page == "Data Explorer":
 
 elif page == "New Prediction":
 
-    st.title("🚀 New Prediction")
+    st.title(
+        "🚀 New Prediction"
+    )
 
     st.caption(
         "Generate a forecast scenario from the existing "
@@ -2545,8 +2995,7 @@ elif page == "New Prediction":
     st.info(
         "The uploaded controls modify the existing "
         "Trial-84 baseline forecast. The product and region "
-        "CSV files are allocation outputs based on historical "
-        "sales shares."
+        "CSV files are generated model forecast outputs."
     )
 
     # --------------------------------------------------------
@@ -2611,8 +3060,11 @@ elif page == "New Prediction":
             "Price",
             min_value=0.01,
             value=float(
-                historical_df["Price"].median()
-                if "Price" in historical_df.columns
+                historical_df[
+                    "Price"
+                ].median()
+                if "Price"
+                in historical_df.columns
                 else 100
             ),
             step=1.0,
@@ -2764,8 +3216,9 @@ elif page == "New Prediction":
 
                 product_totals = (
                     historical_df
-                    .groupby("Product_Name")
-                    ["Units_Sold"]
+                    .groupby(
+                        "Product_Name"
+                    )["Units_Sold"]
                     .sum()
                 )
 
@@ -2797,8 +3250,9 @@ elif page == "New Prediction":
 
                 region_totals = (
                     historical_df
-                    .groupby("Store_Location")
-                    ["Units_Sold"]
+                    .groupby(
+                        "Store_Location"
+                    )["Units_Sold"]
                     .sum()
                 )
 
@@ -2998,4 +3452,3 @@ st.caption(
     "Historical: 06-Jan-2023 to 10-Sep-2026 | "
     "Forecast: 11-Sep-2026 to 31-Dec-2027"
 )
-
