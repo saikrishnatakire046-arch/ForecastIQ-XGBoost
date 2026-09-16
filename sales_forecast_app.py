@@ -1,4 +1,4 @@
-```python
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -2755,4 +2755,4 @@ st.caption(
     "Historical: 06-Jan-2023 to 10-Sep-2026 | "
     "Forecast: 11-Sep-2026 to 31-Dec-2027"
 )
-```
+
