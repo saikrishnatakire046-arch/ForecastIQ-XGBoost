@@ -1047,9 +1047,7 @@ if page == "📦 Product-Based Forecast":
     else:
 
         required = [
-            "Date",
-            "Product_ID",
-            "Product_Name",
+            "Forecast_Date",
             "Predicted_Units_Sold"
         ]
 
@@ -1342,8 +1340,9 @@ elif page == "📍 Region-Based Forecast":
     else:
 
         required = [
-            "Date",
-            "Store_Location",
+            "Forecast_Date",
+            Product_ID,
+            Product_Name,
             "Predicted_Units_Sold"
         ]
 
