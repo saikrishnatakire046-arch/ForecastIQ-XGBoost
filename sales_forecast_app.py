@@ -171,21 +171,15 @@ def load_product_forecast():
 
 @st.cache_data
 def load_region_forecast():
-    # existing code
-    pass
-
-
-@st.cache_data
-def load_region_forecast():
 
     forecast = pd.read_csv(
         REGION_FORECAST_PATH
     )
 
-    if "Date" in forecast.columns:
+    if "Forecast_Date" in forecast.columns:
 
-        forecast["Date"] = pd.to_datetime(
-            forecast["Date"],
+        forecast["Forecast_Date"] = pd.to_datetime(
+            forecast["Forecast_Date"],
             errors="coerce"
         )
 
