@@ -24,11 +24,23 @@ st.set_page_config(
 BASE_DIR = Path(__file__).parent
 
 # IMPORTANT:
-# All CSV files must be in the same GitHub folder as app.py
-DATA_PATH = BASE_DIR / "sales_data.csv"
-FORECAST_PATH = BASE_DIR / "new_overall_forecast.csv"
-PRODUCT_FORECAST_PATH = BASE_DIR / "new_product_forecast.csv"
-REGION_FORECAST_PATH = BASE_DIR / "new_region_forecast.csv"
+# Sales data is loaded from the specified Windows path
+DATA_PATH = Path(
+    r"C:\Users\lenovo\ForecastIQ\sales_data.csv"
+)
+
+# Forecast files are loaded from the specified Windows paths
+FORECAST_PATH = Path(
+    r"C:\Users\lenovo\Downloads\new_overall_forecast.csv"
+)
+
+PRODUCT_FORECAST_PATH = Path(
+    r"C:\Users\lenovo\Downloads\new_product_forecast.csv"
+)
+
+REGION_FORECAST_PATH = Path(
+    r"C:\Users\lenovo\Downloads\new_region_forecast.csv.csv"
+)
 
 
 # ============================================================
@@ -2187,118 +2199,4 @@ elif page == "Forecast Intelligence":
         fc[
             "Predicted_Units_Sold"
         ].sum()
-    )
-
-    average_forecast = (
-        fc[
-            "Predicted_Units_Sold"
-        ].mean()
-    )
-
-    peak_forecast = (
-        fc[
-            "Predicted_Units_Sold"
-        ].max()
-    )
-
-    c1, c2, c3 = st.columns(3)
-
-    c1.metric(
-        "Total Forecast",
-        number(total_forecast)
-    )
-
-    c2.metric(
-        "Average Daily",
-        f"{average_forecast:,.1f}"
-    )
-
-    c3.metric(
-        "Peak Daily",
-        number(peak_forecast)
-    )
-
-    st.line_chart(
-        fc.groupby(
-            "Date"
-        )[
-            "Predicted_Units_Sold"
-        ].sum()
-    )
-
-    st.dataframe(
-        fc,
-        use_container_width=True
-    )
-
-
-# ============================================================
-# PAGE 15 — MODEL INTELLIGENCE
-# ============================================================
-
-elif page == "Model Intelligence":
-
-    st.title(
-        "🤖 Model Intelligence"
-    )
-
-    st.subheader(
-        "Final Model"
-    )
-
-    model_info = pd.DataFrame({
-        "Metric": [
-            "Model",
-            "Algorithm",
-            "Target",
-            "Transformation",
-            "CV Method",
-            "Selected Trial",
-            "Forecast Frequency",
-            "MAE",
-            "MSE",
-            "RMSE",
-            "MAPE"
-        ],
-        "Value": [
-            "Final Trial 84 Log-XGBoost",
-            "XGBoost Regressor",
-            "Units_Sold",
-            "log1p → expm1",
-            "TimeSeriesSplit",
-            "Optuna Trial 84",
-            "Daily",
-            "2.280793",
-            "25.524807",
-            "5.052208",
-            "11.136303%"
-        ]
-    })
-
-    st.dataframe(
-        model_info,
-        use_container_width=True,
-        hide_index=True
-    )
-
-    st.subheader(
-        "Model Features"
-    )
-
-    st.write(
-        f"Total features: {len(MODEL_FEATURES)}"
-    )
-
-    st.dataframe(
-        pd.DataFrame({
-            "Feature": MODEL_FEATURES
-        }),
-        use_container_width=True,
-        hide_index=True
-    )
-
-    st.info(
-        "The final production model was trained using "
-        "Optuna Trial 84 with log1p transformation of "
-        "the target variable (Units_Sold)."
     )
