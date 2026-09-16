@@ -824,6 +824,8 @@ Final Trial 84 Log-XGBoost
 )
 
 
+# =================================================
+
 # ============================================================
 # PAGE 1 — PRODUCT-BASED FORECAST
 # ============================================================
@@ -834,77 +836,127 @@ if page == "Product-Based Forecast":
 
     st.caption(
         "Daily product-level forecast generated from the "
-        "precomputed Trial-84 overall forecast using "
-        "historical product sales shares."
+        "precomputed Trial-84 forecast."
     )
 
     if product_forecast_df.empty:
         st.error(
             "product_based_forecast_2026_2027.csv "
-            "is not available."
+            "could not be loaded."
         )
         st.stop()
 
-    required = [
-        "Date",
-        "Product_ID",
-        "Product_Name",
-        "Predicted_Units_Sold"
-    ]
+    # --------------------------------------------------------
+    # SHOW ACTUAL COLUMNS
+    # --------------------------------------------------------
 
-    missing = [
-        c for c in required
-        if c not in product_forecast_df.columns
-    ]
+    product_forecast_df["Date"] = pd.to_datetime(
+        product_forecast_df["Date"],
+        errors="coerce"
+    )
 
-    if missing:
+    if "Predicted_Units_Sold" not in product_forecast_df.columns:
         st.error(
-            f"Missing columns: {missing}"
+            "Predicted_Units_Sold column is missing "
+            "from product forecast CSV."
+        )
+        st.write(
+            "Columns found:",
+            list(product_forecast_df.columns)
         )
         st.stop()
+
+    # --------------------------------------------------------
+    # PRODUCT COLUMN
+    # --------------------------------------------------------
+
+    if "Product_Name" in product_forecast_df.columns:
+
+        product_column = "Product_Name"
+
+    elif "Product_ID" in product_forecast_df.columns:
+
+        product_column = "Product_ID"
+
+    else:
+
+        st.error(
+            "No product identifier column found."
+        )
+
+        st.write(
+            "Columns found:",
+            list(product_forecast_df.columns)
+        )
+
+        st.stop()
+
+    # --------------------------------------------------------
+    # PRODUCT OPTIONS
+    # --------------------------------------------------------
 
     products = sorted(
         product_forecast_df[
-            "Product_Name"
-        ].dropna().unique()
+            product_column
+        ]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
     )
 
     product_options = [
         "All Products"
     ] + products
 
+    # --------------------------------------------------------
+    # CONTROLS
+    # --------------------------------------------------------
+
     st.subheader("Forecast Controls")
 
     c1, c2, c3, c4 = st.columns(4)
 
     with c1:
+
         selected_product = st.selectbox(
             "Product",
-            product_options
+            product_options,
+            key="product_forecast_product"
         )
 
     with c2:
+
         current_date = st.date_input(
             "Current Date",
             value=HISTORICAL_CUTOFF.date(),
-            min_value=HISTORICAL_CUTOFF.date()
+            min_value=HISTORICAL_CUTOFF.date(),
+            key="product_forecast_date"
         )
 
     with c3:
+
         horizon = st.number_input(
             "Forecast Horizon (days)",
             min_value=1,
             max_value=477,
             value=30,
-            step=1
+            step=1,
+            key="product_forecast_horizon"
         )
 
     with c4:
+
         generate = st.button(
             "🚀 Generate Forecast",
             type="primary",
-            use_container_width=True
+            use_container_width=True,
+            key="product_forecast_generate"
         )
+
+    # --------------------------------------------------------
+    # GENERATE
+    # --------------------------------------------------------
 
     if generate:
 
@@ -913,106 +965,156 @@ if page == "Product-Based Forecast":
             + pd.Timedelta(days=1)
         )
 
-        result = prepare_product_forecast(
-            product_forecast_df,
-            start_date,
-            int(horizon),
-            selected_product
+        end_date = (
+            start_date
+            + pd.Timedelta(days=int(horizon) - 1)
         )
 
+        result = product_forecast_df.copy()
+
+        result["Date"] = pd.to_datetime(
+            result["Date"],
+            errors="coerce"
+        )
+
+        # Date filter
+        result = result[
+            (result["Date"] >= start_date)
+            &
+            (result["Date"] <= end_date)
+        ].copy()
+
+        # Product filter
+        if selected_product != "All Products":
+
+            result = result[
+                result[product_column].astype(str)
+                == str(selected_product)
+            ].copy()
+
         if result.empty:
+
             st.warning(
                 "No forecast data is available for "
-                "the selected date/horizon."
+                "the selected product/date/horizon."
             )
+
         else:
 
-            result = result.copy()
+            result[
+                "Predicted_Units_Sold"
+            ] = pd.to_numeric(
+                result[
+                    "Predicted_Units_Sold"
+                ],
+                errors="coerce"
+            ).fillna(0)
 
-            result["Predicted_Units_Sold"] = (
-                pd.to_numeric(
-                    result["Predicted_Units_Sold"],
-                    errors="coerce"
-                )
-                .fillna(0)
+            result[
+                "Predicted_Units_Sold"
+            ] = (
+                result[
+                    "Predicted_Units_Sold"
+                ]
                 .round()
                 .astype(int)
             )
 
-            total = result[
-                "Predicted_Units_Sold"
-            ].sum()
+            # ------------------------------------------------
+            # METRICS
+            # ------------------------------------------------
 
-            avg = result[
-                "Predicted_Units_Sold"
-            ].mean()
+            total_units = (
+                result[
+                    "Predicted_Units_Sold"
+                ].sum()
+            )
 
-            peak = result[
-                "Predicted_Units_Sold"
-            ].max()
+            average_units = (
+                result[
+                    "Predicted_Units_Sold"
+                ].mean()
+            )
+
+            peak_units = (
+                result[
+                    "Predicted_Units_Sold"
+                ].max()
+            )
 
             m1, m2, m3 = st.columns(3)
 
             m1.metric(
                 "Forecast Units",
-                number(total)
+                f"{total_units:,.0f}"
             )
 
             m2.metric(
                 "Average Daily Units",
-                f"{avg:,.1f}"
+                f"{average_units:,.1f}"
             )
 
             m3.metric(
                 "Peak Daily Units",
-                number(peak)
+                f"{peak_units:,.0f}"
             )
 
             st.markdown("---")
 
-            chart_data = result.copy()
+            # ------------------------------------------------
+            # CHART
+            # ------------------------------------------------
 
-            if selected_product == "All Products":
-
-                chart_data = (
-                    chart_data
-                    .groupby("Date", as_index=False)
-                    ["Predicted_Units_Sold"]
-                    .sum()
-                )
-
-            else:
-
-                chart_data = (
-                    chart_data
-                    .groupby("Date", as_index=False)
-                    ["Predicted_Units_Sold"]
-                    .sum()
-                )
-
-            st.subheader("Forecast Trend")
-
-            st.line_chart(
-                chart_data.set_index("Date")
+            st.subheader(
+                "📈 Forecast Trend"
             )
 
-            st.subheader("Forecast Data")
+            chart_data = (
+                result
+                .groupby("Date")[
+                    "Predicted_Units_Sold"
+                ]
+                .sum()
+                .reset_index()
+            )
+
+            chart_data = chart_data.set_index(
+                "Date"
+            )
+
+            st.line_chart(
+                chart_data
+            )
+
+            # ------------------------------------------------
+            # TABLE
+            # ------------------------------------------------
+
+            st.subheader(
+                "📋 Forecast Data"
+            )
 
             st.dataframe(
                 result,
                 use_container_width=True,
-                height=400
+                height=450
             )
+
+            # ------------------------------------------------
+            # DOWNLOAD
+            # ------------------------------------------------
 
             d1, d2 = st.columns(2)
 
             with d1:
+
                 download_csv(
                     result,
                     "product_forecast.csv"
                 )
 
             with d2:
+
                 download_excel(
                     result,
                     "product_forecast.xlsx"
@@ -1021,10 +1123,10 @@ if page == "Product-Based Forecast":
     else:
 
         st.info(
-            "Select the Product, Current Date and "
-            "Forecast Horizon, then click Generate Forecast."
+            "Select the product, current date and "
+            "forecast horizon, then click "
+            "**Generate Forecast**."
         )
-
 
 # ============================================================
 # PAGE 2 — REGION-BASED FORECAST
