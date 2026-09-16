@@ -26,9 +26,9 @@ BASE_DIR = Path(__file__).parent
 # IMPORTANT:
 # All CSV files must be in the same GitHub folder as app.py
 DATA_PATH = BASE_DIR / "sales_data.csv"
-FORECAST_PATH = BASE_DIR / "new_overall_forecast"
-PRODUCT_FORECAST_PATH = BASE_DIR / "new_product_forecast"
-REGION_FORECAST_PATH = BASE_DIR / "new_region_forecast"
+FORECAST_PATH = BASE_DIR / "new_overall_forecast.csv"
+PRODUCT_FORECAST_PATH = BASE_DIR / "new_product_forecast.csv"
+REGION_FORECAST_PATH = BASE_DIR / "new_region_forecast.csv"
 
 
 # ============================================================
