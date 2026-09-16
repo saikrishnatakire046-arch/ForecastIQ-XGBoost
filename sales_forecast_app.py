@@ -31,169 +31,69 @@ REGION_FORECAST_PATH = BASE_DIR / "region_based_forecast_2026_2027.csv"
 
 
 # ============================================================
-# CUSTOM CSS
-# ============================================================
-
-st.markdown(
-    """
-    <style>
-
-    /* Main application */
-
-    .main-title {
-        font-size: 42px;
-        font-weight: 800;
-        margin-bottom: 0px;
-    }
-
-    .main-subtitle {
-        font-size: 18px;
-        color: #777;
-        margin-top: 0px;
-    }
-
-    /* Quick navigation */
-
-    div.stButton > button {
-        border-radius: 10px;
-        font-weight: 600;
-        min-height: 45px;
-    }
-
-    /* Metric cards */
-
-    div[data-testid="stMetric"] {
-        border-radius: 12px;
-        padding: 10px;
-    }
-
-    /* Sidebar */
-
-    section[data-testid="stSidebar"] {
-        min-width: 280px;
-    }
-
-    /* Small section labels */
-
-    .section-label {
-        font-size: 13px;
-        font-weight: 700;
-        letter-spacing: 0.5px;
-        color: #777;
-        text-transform: uppercase;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-
-# ============================================================
 # LOAD DATA
 # ============================================================
 
 @st.cache_data
 def load_data():
     data = pd.read_csv(DATA_PATH)
-
-    if "Date" in data.columns:
-        data["Date"] = pd.to_datetime(
-            data["Date"],
-            errors="coerce"
-        )
-
+    data["Date"] = pd.to_datetime(data["Date"], errors="coerce")
     return data
 
 
 @st.cache_data
 def load_forecast():
     data = pd.read_csv(FORECAST_PATH)
-
-    if "Date" in data.columns:
-        data["Date"] = pd.to_datetime(
-            data["Date"],
-            errors="coerce"
-        )
-
+    data["Date"] = pd.to_datetime(data["Date"], errors="coerce")
     return data
 
 
 @st.cache_data
 def load_optional_forecast(path):
     data = pd.read_csv(path)
-
     if "Date" in data.columns:
-        data["Date"] = pd.to_datetime(
-            data["Date"],
-            errors="coerce"
-        )
-
+        data["Date"] = pd.to_datetime(data["Date"], errors="coerce")
     return data
 
 
 # ============================================================
-# LOAD FILES
+# LOAD
 # ============================================================
 
 try:
     df = load_data()
-
 except Exception as e:
-    st.error(
-        f"Could not load historical dataset: {e}"
-    )
+    st.error(f"Could not load historical dataset: {e}")
     st.stop()
-
 
 try:
     forecast_df = load_forecast()
-
 except Exception as e:
-    st.error(
-        f"Could not load forecast file: {e}"
-    )
+    st.error(f"Could not load forecast file: {e}")
     st.stop()
 
-
+# Optional files. The app will still open if they are not present.
 product_forecast_df = None
 region_forecast_df = None
 
-
 if PRODUCT_FORECAST_PATH.exists():
-
     try:
-        product_forecast_df = load_optional_forecast(
-            PRODUCT_FORECAST_PATH
-        )
-
+        product_forecast_df = load_optional_forecast(PRODUCT_FORECAST_PATH)
     except Exception as e:
-        st.warning(
-            f"Product forecast file could not be loaded: {e}"
-        )
-
+        st.warning(f"Product forecast file could not be loaded: {e}")
 
 if REGION_FORECAST_PATH.exists():
-
     try:
-        region_forecast_df = load_optional_forecast(
-            REGION_FORECAST_PATH
-        )
-
+        region_forecast_df = load_optional_forecast(REGION_FORECAST_PATH)
     except Exception as e:
-        st.warning(
-            f"Region forecast file could not be loaded: {e}"
-        )
+        st.warning(f"Region forecast file could not be loaded: {e}")
 
 
 # ============================================================
 # HISTORICAL CUTOFF
 # ============================================================
 
-HISTORICAL_CUTOFF = pd.Timestamp(
-    "2026-09-10"
-)
-
+HISTORICAL_CUTOFF = pd.Timestamp("2026-09-10")
 
 historical_df = df[
     df["Date"] <= HISTORICAL_CUTOFF
@@ -233,31 +133,15 @@ required_columns = [
     "Weather"
 ]
 
-
 missing_columns = [
-    col
-    for col in required_columns
+    col for col in required_columns
     if col not in df.columns
 ]
 
-
 if missing_columns:
-
     st.error(
-        "Missing required columns in historical dataset: "
-        f"{missing_columns}"
+        f"Missing required columns in historical dataset: {missing_columns}"
     )
-
-    st.stop()
-
-
-if historical_df.empty:
-
-    st.error(
-        "No historical records were found on or before "
-        "10-Sep-2026."
-    )
-
     st.stop()
 
 
@@ -266,54 +150,40 @@ if historical_df.empty:
 # ============================================================
 
 def weekly_sales(data):
-
     return (
-        data
-        .set_index("Date")["Units_Sold"]
+        data.set_index("Date")["Units_Sold"]
         .resample("W-SUN")
         .sum()
     )
 
 
 def daily_sales(data):
-
     return (
-        data
-        .set_index("Date")["Units_Sold"]
+        data.set_index("Date")["Units_Sold"]
         .resample("D")
         .sum()
     )
 
 
 def group_units(data, column):
-
     return (
-        data
-        .groupby(column)["Units_Sold"]
+        data.groupby(column)["Units_Sold"]
         .sum()
         .sort_values(ascending=False)
     )
 
 
 def group_revenue(data, column):
-
     return (
-        data
-        .groupby(column)["Revenue"]
+        data.groupby(column)["Revenue"]
         .sum()
         .sort_values(ascending=False)
     )
 
 
-def top_group(
-    data,
-    group_columns,
-    metric="Units_Sold"
-):
-
+def top_group(data, group_columns, metric="Units_Sold"):
     result = (
-        data
-        .groupby(group_columns)[metric]
+        data.groupby(group_columns)[metric]
         .sum()
         .reset_index()
     )
@@ -324,33 +194,22 @@ def top_group(
     )
 
 
-def download_csv(
-    data,
-    filename
-):
-
+def download_csv(data, filename):
     return st.download_button(
         label="⬇️ Download CSV",
-        data=data.to_csv(
-            index=False
-        ).encode("utf-8"),
+        data=data.to_csv(index=False).encode("utf-8"),
         file_name=filename,
         mime="text/csv"
     )
 
 
-def download_excel(
-    data,
-    filename
-):
-
+def download_excel(data, filename):
     output = BytesIO()
 
     with pd.ExcelWriter(
         output,
         engine="openpyxl"
     ) as writer:
-
         data.to_excel(
             writer,
             index=False
@@ -360,449 +219,7 @@ def download_excel(
         label="⬇️ Download Excel",
         data=output.getvalue(),
         file_name=filename,
-        mime=(
-            "application/vnd.openxmlformats-officedocument."
-            "spreadsheetml.sheet"
-        )
-    )
-
-
-def _safe_float(
-    value,
-    default=0.0
-):
-
-    try:
-
-        value = float(value)
-
-        if np.isfinite(value):
-            return value
-
-    except Exception:
-        pass
-
-    return default
-
-
-def _flag_to_binary(series):
-
-    numeric = pd.to_numeric(
-        series,
-        errors="coerce"
-    )
-
-    result = numeric.copy()
-
-    text = (
-        series
-        .astype(str)
-        .str.strip()
-        .str.lower()
-    )
-
-    mapping = {
-        "yes": 1,
-        "y": 1,
-        "true": 1,
-        "1": 1,
-        "promotion": 1,
-
-        "no": 0,
-        "n": 0,
-        "false": 0,
-        "0": 0,
-        "none": 0
-    }
-
-    mapped = text.map(mapping)
-
-    result = result.fillna(mapped)
-
-    return result
-
-
-def _stock_to_ratio(series):
-
-    numeric = pd.to_numeric(
-        series,
-        errors="coerce"
-    )
-
-    if numeric.dropna().empty:
-        return numeric
-
-    maximum = numeric.dropna().max()
-
-    if maximum > 1.5:
-        return numeric / 100.0
-
-    return numeric
-
-
-def _estimate_price_elasticity(
-    data,
-    product
-):
-
-    p = data[
-        data["Product_Name"] == product
-    ][
-        ["Price", "Units_Sold"]
-    ].copy()
-
-    p["Price"] = pd.to_numeric(
-        p["Price"],
-        errors="coerce"
-    )
-
-    p["Units_Sold"] = pd.to_numeric(
-        p["Units_Sold"],
-        errors="coerce"
-    )
-
-    p = p[
-        (p["Price"] > 0)
-        &
-        (p["Units_Sold"] > 0)
-    ].dropna()
-
-    if (
-        len(p) < 10
-        or
-        p["Price"].nunique() < 2
-    ):
-        return -0.50
-
-    x = np.log(
-        p["Price"].values
-    )
-
-    y = np.log(
-        p["Units_Sold"].values
-    )
-
-    try:
-
-        elasticity = float(
-            np.polyfit(
-                x,
-                y,
-                1
-            )[0]
-        )
-
-    except Exception:
-
-        elasticity = -0.50
-
-    if not np.isfinite(
-        elasticity
-    ):
-
-        elasticity = -0.50
-
-    return float(
-        np.clip(
-            elasticity,
-            -3.0,
-            0.25
-        )
-    )
-
-
-def _scenario_multiplier(
-    data,
-    product,
-    price,
-    discount,
-    promotion,
-    stock,
-    holiday,
-    local_event,
-    competitor_price
-):
-
-    p = data[
-        data["Product_Name"] == product
-    ].copy()
-
-
-    # --------------------------------------------------------
-    # PRICE EFFECT
-    # --------------------------------------------------------
-
-    base_price = _safe_float(
-        p["Price"].median(),
-        price
-    )
-
-    if base_price <= 0:
-        base_price = max(
-            price,
-            1.0
-        )
-
-    elasticity = _estimate_price_elasticity(
-        data,
-        product
-    )
-
-    price_multiplier = (
-        max(price, 0.01)
-        /
-        base_price
-    ) ** elasticity
-
-
-    # --------------------------------------------------------
-    # DISCOUNT EFFECT
-    # --------------------------------------------------------
-
-    discount_multiplier = 1.0
-
-    if (
-        len(p) > 0
-        and
-        "Discount_Percentage" in p.columns
-    ):
-
-        d = pd.to_numeric(
-            p["Discount_Percentage"],
-            errors="coerce"
-        )
-
-        u = pd.to_numeric(
-            p["Units_Sold"],
-            errors="coerce"
-        )
-
-        nonzero = u[
-            d > 0
-        ].mean()
-
-        zero = u[
-            d.fillna(0) <= 0
-        ].mean()
-
-        if (
-            pd.notna(nonzero)
-            and
-            pd.notna(zero)
-            and
-            zero > 0
-        ):
-
-            observed_ratio = float(
-                nonzero / zero
-            )
-
-            if (d > 0).any():
-
-                hist_median_discount = float(
-                    d[d > 0].median()
-                )
-
-            else:
-
-                hist_median_discount = 10.0
-
-            hist_median_discount = max(
-                hist_median_discount,
-                1.0
-            )
-
-            discount_multiplier = (
-                1.0
-                +
-                (
-                    observed_ratio - 1.0
-                )
-                *
-                min(
-                    discount /
-                    hist_median_discount,
-                    2.0
-                )
-            )
-
-    discount_multiplier = float(
-        np.clip(
-            discount_multiplier,
-            0.60,
-            1.60
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # PROMOTION EFFECT
-    # --------------------------------------------------------
-
-    promotion_multiplier = 1.0
-
-    if (
-        len(p) > 0
-        and
-        "Promotion_Flag" in p.columns
-    ):
-
-        promo = _flag_to_binary(
-            p["Promotion_Flag"]
-        )
-
-        units = pd.to_numeric(
-            p["Units_Sold"],
-            errors="coerce"
-        )
-
-        promo_mean = units[
-            promo == 1
-        ].mean()
-
-        no_promo_mean = units[
-            promo == 0
-        ].mean()
-
-        if (
-            pd.notna(promo_mean)
-            and
-            pd.notna(no_promo_mean)
-            and
-            no_promo_mean > 0
-        ):
-
-            historical_promo_ratio = (
-                float(
-                    promo_mean /
-                    no_promo_mean
-                )
-            )
-
-            if promotion == "Yes":
-
-                promotion_multiplier = (
-                    historical_promo_ratio
-                )
-
-            else:
-
-                promotion_multiplier = 1.0
-
-    promotion_multiplier = float(
-        np.clip(
-            promotion_multiplier,
-            0.70,
-            1.50
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # STOCK EFFECT
-    # --------------------------------------------------------
-
-    stock_ratio = float(
-        np.clip(
-            stock / 100.0,
-            0.0,
-            1.0
-        )
-    )
-
-    stock_multiplier = float(
-        np.clip(
-            stock_ratio,
-            0.50,
-            1.00
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # HOLIDAY
-    # --------------------------------------------------------
-
-    holiday_multiplier = (
-        1.08
-        if holiday == "Yes"
-        else 1.00
-    )
-
-
-    # --------------------------------------------------------
-    # LOCAL EVENT
-    # --------------------------------------------------------
-
-    event_multiplier = (
-        1.05
-        if local_event == "Yes"
-        else 1.00
-    )
-
-
-    # --------------------------------------------------------
-    # COMPETITOR PRICE
-    # --------------------------------------------------------
-
-    competitor_multiplier = 1.0
-
-    if (
-        competitor_price > 0
-        and
-        price > 0
-    ):
-
-        relative_gap = (
-            price -
-            competitor_price
-        ) / max(
-            competitor_price,
-            0.01
-        )
-
-        competitor_multiplier = (
-            1.0
-            -
-            0.25 *
-            relative_gap
-        )
-
-    competitor_multiplier = float(
-        np.clip(
-            competitor_multiplier,
-            0.75,
-            1.25
-        )
-    )
-
-
-    multiplier = (
-        price_multiplier
-        *
-        discount_multiplier
-        *
-        promotion_multiplier
-        *
-        stock_multiplier
-        *
-        holiday_multiplier
-        *
-        event_multiplier
-        *
-        competitor_multiplier
-    )
-
-    return (
-        float(
-            np.clip(
-                multiplier,
-                0.20,
-                3.00
-            )
-        ),
-        elasticity,
-        base_price
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
 
@@ -810,19 +227,11 @@ def _scenario_multiplier(
 # APP HEADER
 # ============================================================
 
-st.markdown(
-    '<div class="main-title">📈 ForecastIQ</div>',
-    unsafe_allow_html=True
-)
+st.title("📈 ForecastIQ")
 
-st.markdown(
-    '<div class="main-subtitle">'
-    'AI-Powered Daily Sales Intelligence & Forecasting'
-    '</div>',
-    unsafe_allow_html=True
+st.caption(
+    "AI-Powered Daily Sales Intelligence & Forecasting"
 )
-
-st.write("")
 
 
 # ============================================================
@@ -839,84 +248,47 @@ st.sidebar.divider()
 
 
 # ============================================================
-# NAVIGATION PAGES
+# NAVIGATION
 # ============================================================
 
-PAGES = [
-
-    "📦 Product-Based Forecast",
-    "📍 Region-Based Forecast",
-    "📊 Executive Dashboard",
-
-    "📍 Location Intelligence",
-    "📦 Product Intelligence",
-    "📅 Quarter Intelligence",
-
-    "🎯 Demand Drivers",
-    "💰 Pricing Intelligence",
-    "📢 Promotion Intelligence",
-
-    "🗂️ Category Intelligence",
-    "🛒 Sales Channel Intelligence",
-    "👥 Customer Intelligence",
-
-    "📅 Weekly Sales Intelligence",
-    "🔮 Forecast Intelligence",
-    "🤖 Model Intelligence",
-
-    "🔍 Cross-Analysis Explorer",
-    "💡 Demand Opportunity Finder",
-
-    "🏆 Leaderboards",
-    "📍 Product × Location Finder",
-
-    "💬 Ask ForecastIQ",
-    "🗃️ Data Explorer",
-    "🔮 New Prediction"
-]
-
-
-# ============================================================
-# SESSION STATE NAVIGATION
-# ============================================================
-
-if "active_page" not in st.session_state:
-
-    st.session_state.active_page = (
-        "📊 Executive Dashboard"
-    )
-
-
-sidebar_page = st.sidebar.radio(
-    "🧭 Navigation",
-    PAGES,
-    index=PAGES.index(
-        st.session_state.active_page
-    )
+page = st.sidebar.radio(
+    "Navigation",
+    [
+        "📦 Product-Based Forecast",
+        "📍 Region-Based Forecast",
+        "Executive Dashboard",
+        "Location Intelligence",
+        "Product Intelligence",
+        "Quarter Intelligence",
+        "Demand Drivers",
+        "Pricing Intelligence",
+        "Promotion Intelligence",
+        "Category Intelligence",
+        "Sales Channel Intelligence",
+        "Customer Intelligence",
+        "Weekly Sales Intelligence",
+        "Forecast Intelligence",
+        "Model Intelligence",
+        "Cross-Analysis Explorer",
+        "Demand Opportunity Finder",
+        "Leaderboards",
+        "Product × Location Finder",
+        "Ask ForecastIQ",
+        "Data Explorer",
+        "New Prediction"
+    ]
 )
 
-
-if sidebar_page != st.session_state.active_page:
-
-    st.session_state.active_page = sidebar_page
-
-
-page = st.session_state.active_page
-
-
-# ============================================================
-# SIDEBAR METRICS
-# ============================================================
 
 st.sidebar.divider()
 
 st.sidebar.metric(
-    "📋 Historical Records",
+    "Historical Records",
     f"{len(historical_df):,}"
 )
 
 st.sidebar.metric(
-    "🔮 Forecast Days",
+    "Forecast Days",
     f"{len(forecast_df):,}"
 )
 
@@ -926,57 +298,113 @@ st.sidebar.caption(
 
 
 # ============================================================
-# QUICK NAVIGATION BUTTONS
+# FORECAST SCENARIO HELPERS
 # ============================================================
 
-st.subheader("⚡ Quick Forecast Navigation")
-
-nav1, nav2, nav3 = st.columns(3)
-
-
-with nav1:
-
-    if st.button(
-        "📦 Product-Based Forecast",
-        use_container_width=True
-    ):
-
-        st.session_state.active_page = (
-            "📦 Product-Based Forecast"
-        )
-
-        st.rerun()
+def _safe_float(value, default=0.0):
+    try:
+        value = float(value)
+        if np.isfinite(value):
+            return value
+    except Exception:
+        pass
+    return default
 
 
-with nav2:
+def _estimate_price_elasticity(data, product):
+    """Estimate a simple historical log-log price elasticity for a product.
+    This is used only as a scenario adjustment on top of the precomputed
+    product forecast; it does not retrain or replace the Trial 84 XGBoost model.
+    """
+    p = data[data["Product_Name"] == product][["Price", "Units_Sold"]].copy()
+    p["Price"] = pd.to_numeric(p["Price"], errors="coerce")
+    p["Units_Sold"] = pd.to_numeric(p["Units_Sold"], errors="coerce")
+    p = p[(p["Price"] > 0) & (p["Units_Sold"] > 0)].dropna()
 
-    if st.button(
-        "📍 Region-Based Forecast",
-        use_container_width=True
-    ):
+    if len(p) < 10 or p["Price"].nunique() < 2:
+        return -0.50
 
-        st.session_state.active_page = (
-            "📍 Region-Based Forecast"
-        )
+    x = np.log(p["Price"].values)
+    y = np.log(p["Units_Sold"].values)
+    try:
+        elasticity = float(np.polyfit(x, y, 1)[0])
+    except Exception:
+        elasticity = -0.50
 
-        st.rerun()
+    if not np.isfinite(elasticity):
+        elasticity = -0.50
 
-
-with nav3:
-
-    if st.button(
-        "📊 Executive Dashboard",
-        use_container_width=True
-    ):
-
-        st.session_state.active_page = (
-            "📊 Executive Dashboard"
-        )
-
-        st.rerun()
+    return float(np.clip(elasticity, -3.0, 0.25))
 
 
-st.divider()
+def _scenario_multiplier(data, product, price, discount, promotion,
+                         stock, holiday, local_event, competitor_price):
+    """Build transparent scenario adjustments from historical relationships.
+    The base forecast still comes from the supplied product forecast CSV.
+    """
+    p = data[data["Product_Name"] == product].copy()
+
+    # Price effect: estimated historical elasticity.
+    base_price = _safe_float(p["Price"].median(), price)
+    if base_price <= 0:
+        base_price = max(price, 1.0)
+    elasticity = _estimate_price_elasticity(data, product)
+    price_multiplier = (max(price, 0.01) / base_price) ** elasticity
+
+    # Discount effect: compare historical discounted vs non-discounted demand.
+    discount_multiplier = 1.0
+    if len(p) > 0 and "Discount_Percentage" in p.columns:
+        d = pd.to_numeric(p["Discount_Percentage"], errors="coerce")
+        u = pd.to_numeric(p["Units_Sold"], errors="coerce")
+        nonzero = u[d > 0].mean()
+        zero = u[d.fillna(0) <= 0].mean()
+        if pd.notna(nonzero) and pd.notna(zero) and zero > 0:
+            observed_ratio = float(nonzero / zero)
+            # Scale observed effect to the entered discount level.
+            hist_median_discount = float(d[d > 0].median()) if (d > 0).any() else 10.0
+            hist_median_discount = max(hist_median_discount, 1.0)
+            discount_multiplier = 1.0 + (observed_ratio - 1.0) * min(discount / hist_median_discount, 2.0)
+    discount_multiplier = float(np.clip(discount_multiplier, 0.60, 1.60))
+
+    # Promotion effect from historical product demand.
+    promotion_multiplier = 1.0
+    if len(p) > 0 and "Promotion_Flag" in p.columns:
+        promo = pd.to_numeric(p["Promotion_Flag"], errors="coerce")
+        units = pd.to_numeric(p["Units_Sold"], errors="coerce")
+        promo_mean = units[promo == 1].mean()
+        no_promo_mean = units[promo == 0].mean()
+        if pd.notna(promo_mean) and pd.notna(no_promo_mean) and no_promo_mean > 0:
+            historical_promo_ratio = float(promo_mean / no_promo_mean)
+            promotion_multiplier = historical_promo_ratio if promotion == "Yes" else 1.0 / max(historical_promo_ratio, 0.01)
+            if promotion == "No":
+                promotion_multiplier = 1.0
+    promotion_multiplier = float(np.clip(promotion_multiplier, 0.70, 1.50))
+
+    # Stock availability effect. Treat 100 as fully available.
+    stock_multiplier = float(np.clip(stock / 100.0, 0.50, 1.00))
+
+    # Holiday/local event scenario multipliers. These are intentionally modest.
+    holiday_multiplier = 1.08 if holiday == "Yes" else 1.00
+    event_multiplier = 1.05 if local_event == "Yes" else 1.00
+
+    # Competitor price effect: cheaper competitor can reduce demand.
+    competitor_multiplier = 1.0
+    if competitor_price > 0 and price > 0:
+        relative_gap = (price - competitor_price) / max(competitor_price, 0.01)
+        competitor_multiplier = 1.0 - 0.25 * relative_gap
+    competitor_multiplier = float(np.clip(competitor_multiplier, 0.75, 1.25))
+
+    multiplier = (
+        price_multiplier
+        * discount_multiplier
+        * promotion_multiplier
+        * stock_multiplier
+        * holiday_multiplier
+        * event_multiplier
+        * competitor_multiplier
+    )
+
+    return float(np.clip(multiplier, 0.20, 3.00)), elasticity, base_price
 
 
 # ============================================================
@@ -985,1572 +413,437 @@ st.divider()
 
 info1, info2, info3 = st.columns(3)
 
-
 with info1:
-
-    st.caption("📊 HISTORICAL DATA")
-
-    hist_min = historical_df[
-        "Date"
-    ].min()
-
-    hist_max = historical_df[
-        "Date"
-    ].max()
-
+    st.caption("HISTORICAL DATA")
     st.write(
-        f"{hist_min.strftime('%d %b %Y')} → "
-        f"{hist_max.strftime('%d %b %Y')}"
+        f"{historical_df['Date'].min().strftime('%d %b %Y')} → "
+        f"{historical_df['Date'].max().strftime('%d %b %Y')}"
     )
 
-
 with info2:
-
-    st.caption("🔮 FORECAST HORIZON")
-
-    if (
-        "Date" in forecast_df.columns
-        and
-        forecast_df["Date"].notna().any()
-    ):
-
-        fmin = forecast_df["Date"].min()
-        fmax = forecast_df["Date"].max()
-
-        st.write(
-            f"{fmin.strftime('%d %b %Y')} → "
-            f"{fmax.strftime('%d %b %Y')}"
-        )
-
-    else:
-
-        st.write("Forecast dates unavailable")
-
+    st.caption("FORECAST HORIZON")
+    st.write("11 Sep 2026 → 31 Dec 2027")
 
 with info3:
-
-    st.caption("📅 FORECAST FREQUENCY")
-
+    st.caption("FORECAST FREQUENCY")
     st.write("Daily")
-
 
 st.divider()
 
 
 # ============================================================
-# 1. PRODUCT-BASED FORECAST
+# PRODUCT-BASED FORECAST
 # ============================================================
 
 if page == "📦 Product-Based Forecast":
 
     st.header("📦 Product-Based Forecast")
-
     st.caption(
-        "Create a product-level forecast scenario using the "
-        "precomputed product forecast and adjust business inputs."
+        "Daily product-based forecast from the precomputed forecast file."
     )
 
-
-    if (
-        product_forecast_df is None
-        or
-        product_forecast_df.empty
-    ):
-
+    if product_forecast_df is None or product_forecast_df.empty:
         st.error(
-            "Product forecast data is not available. "
-            "Make sure product_based_forecast_2026_2027.csv "
-            "is in the same GitHub folder as this application."
+            "Product forecast data is not available. Make sure "
+            "product_based_forecast_2026_2027.csv is in the same GitHub folder "
+            "as sales_forecast_app.py."
         )
-
-    elif not {
-        "Date",
-        "Product_Name",
-        "Predicted_Units_Sold"
-    }.issubset(
-        product_forecast_df.columns
-    ):
-
+    elif not {"Date", "Predicted_Units_Sold"}.issubset(product_forecast_df.columns):
         st.error(
-            "Product forecast CSV must contain: "
-            "Date, Product_Name and Predicted_Units_Sold."
+            "Product forecast CSV must contain Date and Predicted_Units_Sold."
         )
-
     else:
-
-        # ----------------------------------------------------
-        # PRODUCT
-        # ----------------------------------------------------
-
-        product_options = sorted(
-            product_forecast_df[
-                "Product_Name"
-            ]
-            .dropna()
-            .astype(str)
-            .unique()
+        result = product_forecast_df.copy()
+        result["Date"] = pd.to_datetime(result["Date"], errors="coerce")
+        result["Predicted_Units_Sold"] = pd.to_numeric(
+            result["Predicted_Units_Sold"], errors="coerce"
         )
 
-        selected_product = st.selectbox(
-            "📦 Product",
-            product_options,
-            key="product_forecast_product"
+        # Forecast starts from the day after the last historical date.
+        next_forecast_date = historical_df["Date"].max() + pd.Timedelta(days=1)
+        result = result[result["Date"] >= next_forecast_date].copy()
+
+        # Keep forecast predictions as whole units consistently.
+        result["Predicted_Units_Sold"] = (
+            result["Predicted_Units_Sold"]
+            .fillna(0)
+            .round()
+            .astype(int)
         )
 
+        result = result.sort_values("Date").reset_index(drop=True)
 
-        # ----------------------------------------------------
-        # HISTORICAL PRODUCT DATA
-        # ----------------------------------------------------
+        # Product-based forecast output: only the required columns.
+        result = result[["Date", "Predicted_Units_Sold"]].rename(
+            columns={
+                "Date": "Forecast Date",
+                "Predicted_Units_Sold": "Predicted Units Sold"
+            }
+        )
 
-        product_hist = historical_df[
-            historical_df[
-                "Product_Name"
-            ].astype(str)
-            ==
-            str(selected_product)
-        ].copy()
-
-
-        # ----------------------------------------------------
-        # STORE
-        # ----------------------------------------------------
-
-        if not product_hist.empty:
-
-            store_options = sorted(
-                product_hist[
-                    "Store_Location"
-                ]
-                .dropna()
-                .astype(str)
-                .unique()
-            )
-
+        if result.empty:
+            st.warning("No product forecast is available from the next forecast date.")
         else:
-
-            store_options = []
-
-        store_options = [
-            "All Stores"
-        ] + store_options
-
-
-        selected_store = st.selectbox(
-            "🏪 Store",
-            store_options,
-            key="product_forecast_store"
-        )
-
-
-        # ----------------------------------------------------
-        # CURRENT DATE
-        # ----------------------------------------------------
-
-        valid_product_dates = (
-            product_forecast_df[
-                "Date"
-            ].dropna()
-        )
-
-        if valid_product_dates.empty:
-
-            st.error(
-                "No valid dates are available in the "
-                "product forecast file."
-            )
-
-            st.stop()
-
-
-        forecast_min = (
-            valid_product_dates.min().date()
-        )
-
-        forecast_max = (
-            valid_product_dates.max().date()
-        )
-
-
-        default_date = pd.Timestamp(
-            "2026-09-16"
-        ).date()
-
-
-        default_date = min(
-            max(
-                default_date,
-                forecast_min
-            ),
-            forecast_max
-        )
-
-
-        current_date = st.date_input(
-            "📅 Current Date",
-            value=default_date,
-            min_value=forecast_min,
-            max_value=forecast_max,
-            key="product_forecast_current_date"
-        )
-
-
-        # ----------------------------------------------------
-        # PRICE / DISCOUNT / PROMOTION
-        # ----------------------------------------------------
-
-        c1, c2, c3 = st.columns(3)
-
-
-        with c1:
-
-            default_price = _safe_float(
-                product_hist[
-                    "Price"
-                ].median()
-                if not product_hist.empty
-                else 100.0,
-                100.0
-            )
-
-            price = st.number_input(
-                "💰 Price",
-                min_value=0.01,
-                value=float(
-                    default_price
-                ),
-                step=1.0,
-                key="product_forecast_price"
-            )
-
-
-        with c2:
-
-            discount = st.number_input(
-                "🏷️ Discount %",
-                min_value=0.0,
-                max_value=100.0,
-                value=0.0,
-                step=1.0,
-                key="product_forecast_discount"
-            )
-
-
-        with c3:
-
-            promotion = st.selectbox(
-                "📢 Promotion",
-                ["No", "Yes"],
-                key="product_forecast_promotion"
-            )
-
-
-        # ----------------------------------------------------
-        # STOCK / HOLIDAY / EVENT
-        # ----------------------------------------------------
-
-        c4, c5, c6 = st.columns(3)
-
-
-        with c4:
-
-            default_stock = _safe_float(
-                product_hist[
-                    "Stock_Availability"
-                ].median()
-                if not product_hist.empty
-                else 100.0,
-                100.0
-            )
-
-            default_stock = float(
-                np.clip(
-                    default_stock,
-                    0,
-                    100
-                )
-            )
-
-            stock = st.number_input(
-                "📦 Stock Availability",
-                min_value=0.0,
-                max_value=100.0,
-                value=default_stock,
-                step=1.0,
-                key="product_forecast_stock"
-            )
-
-
-        with c5:
-
-            holiday = st.selectbox(
-                "🎉 Holiday",
-                ["No", "Yes"],
-                key="product_forecast_holiday"
-            )
-
-
-        with c6:
-
-            local_event = st.selectbox(
-                "📍 Local Event",
-                ["No", "Yes"],
-                key="product_forecast_event"
-            )
-
-
-        # ----------------------------------------------------
-        # COMPETITOR / HORIZON / PRICE DISPLAY
-        # ----------------------------------------------------
-
-        c7, c8, c9 = st.columns(3)
-
-
-        with c7:
-
-            default_competitor = _safe_float(
-                product_hist[
-                    "Competitor_Price"
-                ].median()
-                if not product_hist.empty
-                else default_price,
-                default_price
-            )
-
-            competitor_price = st.number_input(
-                "💰 Competitor Price",
-                min_value=0.01,
-                value=float(
-                    default_competitor
-                ),
-                step=1.0,
-                key="product_forecast_competitor"
-            )
-
-
-        with c8:
-
-            forecast_horizon = st.slider(
-                "🔮 Forecast Horizon",
-                min_value=1,
-                max_value=90,
-                value=30,
-                step=1,
-                key="product_forecast_horizon"
-            )
-
-
-        with c9:
-
-            st.metric(
-                "💰 Adjusted Price",
-                f"₹{price:,.2f}"
-            )
-
-
-        st.caption(
-            "🔮 Horizon range: 1 day → 90 days | "
-            "Default: 30 days"
-        )
-
-
-        # ----------------------------------------------------
-        # PRICE ADJUSTMENT INFORMATION
-        # ----------------------------------------------------
-
-        price_difference = (
-            price -
-            default_price
-        )
-
-        price_percentage = (
-            (
-                price_difference /
-                default_price
-            ) * 100
-            if default_price != 0
-            else 0
-        )
-
-
-        if price_percentage > 0:
-
-            st.info(
-                f"💰 Price adjustment: "
-                f"+{price_percentage:.2f}% "
-                f"from the historical reference price."
-            )
-
-        elif price_percentage < 0:
-
-            st.info(
-                f"💰 Price adjustment: "
-                f"{price_percentage:.2f}% "
-                f"from the historical reference price."
-            )
-
-        else:
-
-            st.info(
-                "💰 Price adjustment: "
-                "Using the historical reference price."
-            )
-
-
-        # ----------------------------------------------------
-        # GENERATE
-        # ----------------------------------------------------
-
-        generate_product = st.button(
-            "🔮 Generate Product Forecast",
-            type="primary",
-            use_container_width=True,
-            key="generate_product_forecast"
-        )
-
-
-        # ----------------------------------------------------
-        # SIGNATURE
-        # ----------------------------------------------------
-
-        product_signature = (
-            str(selected_product),
-            str(selected_store),
-            str(current_date),
-            int(forecast_horizon),
-            float(price),
-            float(discount),
-            str(promotion),
-            float(stock),
-            str(holiday),
-            str(local_event),
-            float(competitor_price)
-        )
-
-
-        if generate_product:
-
-            result = product_forecast_df[
-                product_forecast_df[
-                    "Product_Name"
-                ].astype(str)
-                ==
-                str(selected_product)
-            ].copy()
-
-
-            # ------------------------------------------------
-            # STORE FILTER IF AVAILABLE
-            # ------------------------------------------------
-
-            store_column = None
-
-            for candidate in [
-                "Store_Location",
-                "Store",
-                "Region"
-            ]:
-
-                if candidate in result.columns:
-
-                    store_column = candidate
-                    break
-
-
-            if (
-                store_column is not None
-                and
-                selected_store != "All Stores"
-            ):
-
-                result = result[
-                    result[
-                        store_column
-                    ].astype(str)
-                    ==
-                    str(selected_store)
-                ]
-
-
-            result = result.sort_values(
-                "Date"
-            )
-
-
-            start_ts = pd.Timestamp(
-                current_date
-            )
-
-            end_ts = (
-                start_ts
-                +
-                pd.Timedelta(
-                    days=forecast_horizon - 1
-                )
-            )
-
-
-            result = result[
-                (
-                    result["Date"]
-                    >=
-                    start_ts
-                )
-                &
-                (
-                    result["Date"]
-                    <=
-                    end_ts
-                )
-            ].copy()
-
-
-            if result.empty:
-
-                st.warning(
-                    "No product forecast is available "
-                    "for the selected product, store, "
-                    "date and forecast horizon."
-                )
-
-            else:
-
-                # --------------------------------------------
-                # SCENARIO MULTIPLIER
-                # --------------------------------------------
-
-                (
-                    multiplier,
-                    elasticity,
-                    base_price
-                ) = _scenario_multiplier(
-                    historical_df,
-                    selected_product,
-                    price,
-                    discount,
-                    promotion,
-                    stock,
-                    holiday,
-                    local_event,
-                    competitor_price
-                )
-
-
-                # --------------------------------------------
-                # BASE FORECAST
-                # --------------------------------------------
-
-                result[
-                    "Base_Predicted_Units_Sold"
-                ] = pd.to_numeric(
-                    result[
-                        "Predicted_Units_Sold"
-                    ],
-                    errors="coerce"
-                )
-
-
-                # --------------------------------------------
-                # ADJUSTED FORECAST
-                # --------------------------------------------
-
-                result[
-                    "Scenario_Adjustment_Factor"
-                ] = multiplier
-
-
-                result[
-                    "Predicted_Units_Sold"
-                ] = np.maximum(
-                    0,
-                    result[
-                        "Base_Predicted_Units_Sold"
-                    ]
-                    *
-                    multiplier
-                )
-
-
-                # --------------------------------------------
-                # SCENARIO INFORMATION
-                # --------------------------------------------
-
-                result["Product"] = (
-                    selected_product
-                )
-
-                result["Store"] = (
-                    selected_store
-                )
-
-                result["Price"] = (
-                    price
-                )
-
-                result[
-                    "Discount_Percentage"
-                ] = discount
-
-                result["Promotion"] = (
-                    promotion
-                )
-
-                result[
-                    "Stock_Availability"
-                ] = stock
-
-                result["Holiday"] = (
-                    holiday
-                )
-
-                result["Local_Event"] = (
-                    local_event
-                )
-
-                result[
-                    "Competitor_Price"
-                ] = competitor_price
-
-                result[
-                    "Current_Date"
-                ] = pd.Timestamp(
-                    current_date
-                )
-
-                result[
-                    "Forecast_Horizon_Days"
-                ] = forecast_horizon
-
-                result[
-                    "Price_Elasticity_Estimate"
-                ] = elasticity
-
-                result[
-                    "Reference_Historical_Price"
-                ] = base_price
-
-
-                output_columns = [
-                    "Date",
-                    "Product",
-                    "Store",
-                    "Current_Date",
-                    "Forecast_Horizon_Days",
-                    "Price",
-                    "Discount_Percentage",
-                    "Promotion",
-                    "Stock_Availability",
-                    "Holiday",
-                    "Local_Event",
-                    "Competitor_Price",
-                    "Base_Predicted_Units_Sold",
-                    "Scenario_Adjustment_Factor",
-                    "Price_Elasticity_Estimate",
-                    "Reference_Historical_Price",
-                    "Predicted_Units_Sold"
-                ]
-
-
-                result = result[
-                    [
-                        col
-                        for col in output_columns
-                        if col in result.columns
-                    ]
-                ]
-
-
-                st.session_state[
-                    "product_generated_forecast"
-                ] = result
-
-                st.session_state[
-                    "product_forecast_signature"
-                ] = product_signature
-
-
-        # ----------------------------------------------------
-        # DISPLAY ONLY CURRENT RESULT
-        # ----------------------------------------------------
-
-        stored_signature = (
-            st.session_state.get(
-                "product_forecast_signature"
-            )
-        )
-
-
-        if (
-            "product_generated_forecast"
-            in st.session_state
-            and
-            stored_signature
-            ==
-            product_signature
-        ):
-
-            result = st.session_state[
-                "product_generated_forecast"
-            ]
-
-
-            st.success(
-                "✅ Product forecast generated successfully!"
-            )
-
-
-            # ------------------------------------------------
-            # KPIs
-            # ------------------------------------------------
-
             c1, c2, c3 = st.columns(3)
 
-
             with c1:
-
                 st.metric(
-                    "📦 Total Forecast",
-                    f"{result['Predicted_Units_Sold'].sum():,.0f} units"
+                    "Total Forecast",
+                    f"{result['Predicted Units Sold'].sum():,} units"
                 )
-
 
             with c2:
-
                 st.metric(
-                    "📊 Average Daily Forecast",
-                    f"{result['Predicted_Units_Sold'].mean():,.2f}"
+                    "Average Daily Forecast",
+                    f"{result['Predicted Units Sold'].mean():,.0f} units"
                 )
-
 
             with c3:
-
                 st.metric(
-                    "📈 Peak Daily Forecast",
-                    f"{result['Predicted_Units_Sold'].max():,.0f} units"
+                    "Peak Daily Forecast",
+                    f"{result['Predicted Units Sold'].max():,} units"
                 )
 
-
-            st.divider()
-
-
-            st.subheader(
-                "📈 Generated Product Forecast"
+            st.caption(
+                f"Forecast period: {result['Forecast Date'].min().strftime('%d %b %Y')} → "
+                f"{result['Forecast Date'].max().strftime('%d %b %Y')}"
             )
 
-
+            st.subheader("📈 Daily Product Forecast")
             st.line_chart(
-                result.set_index(
-                    "Date"
-                )[
-                    "Predicted_Units_Sold"
-                ],
+                result.set_index("Forecast Date")["Predicted Units Sold"],
                 height=400
             )
 
-
+            st.subheader("Product Forecast Data")
             st.dataframe(
                 result,
                 use_container_width=True,
                 hide_index=True
             )
 
-
             st.download_button(
-                "⬇️ Download Generated Product Forecast CSV",
-                data=result.to_csv(
-                    index=False
-                ).encode("utf-8"),
-                file_name=(
-                    "ForecastIQ_Product_Based_Forecast.csv"
-                ),
+                "⬇️ Download Product Forecast CSV",
+                data=result.to_csv(index=False).encode("utf-8"),
+                file_name="ForecastIQ_Product_Based_Forecast.csv",
                 mime="text/csv",
                 use_container_width=True
             )
 
 
-            st.info(
-                "ℹ️ Scenario note: the supplied product forecast "
-                "CSV remains the base forecast. Price, discount, "
-                "promotion, stock, holiday, local-event and "
-                "competitor-price inputs are applied as transparent "
-                "scenario adjustments. The Trial 84 Log-XGBoost "
-                "model itself is not retrained inside this page."
-            )
-
-
 # ============================================================
-# 2. REGION-BASED FORECAST
+# REGION-BASED FORECAST
 # ============================================================
 
 elif page == "📍 Region-Based Forecast":
 
     st.header("📍 Region-Based Forecast")
-
     st.caption(
-        "Generate a location/region forecast for a selected "
-        "date and forecast horizon."
+        "Product-level forecast data supplied in the region-based forecast file."
     )
 
-
-    if (
-        region_forecast_df is None
-        or
-        region_forecast_df.empty
-    ):
-
+    if region_forecast_df is None or region_forecast_df.empty:
         st.error(
-            "Region forecast data is not available. "
-            "Make sure region_based_forecast_2026_2027.csv "
-            "is in the same GitHub folder as this application."
+            "Region forecast data is not available. Make sure "
+            "region_based_forecast_2026_2027.csv is in the same GitHub folder "
+            "as sales_forecast_app.py."
         )
-
-
     elif not {
         "Date",
-        "Store_Location",
+        "Product_ID",
+        "Product_Name",
         "Predicted_Units_Sold"
-    }.issubset(
-        region_forecast_df.columns
-    ):
-
+    }.issubset(region_forecast_df.columns):
         st.error(
-            "Region forecast CSV must contain: "
-            "Date, Store_Location and Predicted_Units_Sold."
+            "Region forecast CSV must contain Date, Product_ID, Product_Name "
+            "and Predicted_Units_Sold."
         )
-
-
     else:
-
-        # ----------------------------------------------------
-        # REGION
-        # ----------------------------------------------------
-
-        region_options = sorted(
-            region_forecast_df[
-                "Store_Location"
-            ]
-            .dropna()
-            .astype(str)
-            .unique()
+        result = region_forecast_df.copy()
+        result["Date"] = pd.to_datetime(result["Date"], errors="coerce")
+        result["Predicted_Units_Sold"] = pd.to_numeric(
+            result["Predicted_Units_Sold"], errors="coerce"
         )
 
+        # Forecast starts from the day after the last historical date.
+        next_forecast_date = historical_df["Date"].max() + pd.Timedelta(days=1)
+        result = result[result["Date"] >= next_forecast_date].copy()
 
-        selected_region = st.selectbox(
-            "📍 Region / Location",
-            region_options,
-            key="region_forecast_region"
+        # Keep forecast predictions as whole units consistently.
+        result["Predicted_Units_Sold"] = (
+            result["Predicted_Units_Sold"]
+            .fillna(0)
+            .round()
+            .astype(int)
         )
 
+        result = result.sort_values(
+            ["Date", "Product_ID", "Product_Name"]
+        ).reset_index(drop=True)
 
-        # ----------------------------------------------------
-        # DATE
-        # ----------------------------------------------------
-
-        valid_region_dates = (
-            region_forecast_df[
-                "Date"
-            ].dropna()
+        # Region-based forecast output: only the required columns.
+        result = result[[
+            "Date",
+            "Product_ID",
+            "Product_Name",
+            "Predicted_Units_Sold"
+        ]].rename(
+            columns={
+                "Date": "Forecast Date",
+                "Product_ID": "Product ID",
+                "Product_Name": "Product Name",
+                "Predicted_Units_Sold": "Predicted Units Sold"
+            }
         )
 
-
-        if valid_region_dates.empty:
-
-            st.error(
-                "No valid dates are available in the "
-                "region forecast file."
-            )
-
-            st.stop()
-
-
-        forecast_min = (
-            valid_region_dates.min().date()
-        )
-
-        forecast_max = (
-            valid_region_dates.max().date()
-        )
-
-
-        default_date = pd.Timestamp(
-            "2026-09-16"
-        ).date()
-
-
-        default_date = min(
-            max(
-                default_date,
-                forecast_min
-            ),
-            forecast_max
-        )
-
-
-        current_date = st.date_input(
-            "📅 Current Date",
-            value=default_date,
-            min_value=forecast_min,
-            max_value=forecast_max,
-            key="region_forecast_current_date"
-        )
-
-
-        # ----------------------------------------------------
-        # HORIZON
-        # ----------------------------------------------------
-
-        forecast_horizon = st.slider(
-            "🔮 Forecast Horizon",
-            min_value=1,
-            max_value=90,
-            value=30,
-            step=1,
-            key="region_forecast_horizon"
-        )
-
-
-        st.caption(
-            "🔮 Horizon range: 1 day → 90 days | "
-            "Default: 30 days"
-        )
-
-
-        # ----------------------------------------------------
-        # GENERATE
-        # ----------------------------------------------------
-
-        generate_region = st.button(
-            "🔮 Generate Region Forecast",
-            type="primary",
-            use_container_width=True,
-            key="generate_region_forecast"
-        )
-
-
-        region_signature = (
-            str(selected_region),
-            str(current_date),
-            int(forecast_horizon)
-        )
-
-
-        if generate_region:
-
-            result = region_forecast_df[
-                region_forecast_df[
-                    "Store_Location"
-                ].astype(str)
-                ==
-                str(selected_region)
-            ].copy()
-
-
-            result = result.sort_values(
-                "Date"
-            )
-
-
-            start_ts = pd.Timestamp(
-                current_date
-            )
-
-
-            end_ts = (
-                start_ts
-                +
-                pd.Timedelta(
-                    days=forecast_horizon - 1
-                )
-            )
-
-
-            result = result[
-                (
-                    result["Date"]
-                    >=
-                    start_ts
-                )
-                &
-                (
-                    result["Date"]
-                    <=
-                    end_ts
-                )
-            ].copy()
-
-
-            if result.empty:
-
-                st.warning(
-                    "No region forecast is available "
-                    "for the selected location, date "
-                    "and forecast horizon."
-                )
-
-
-            else:
-
-                result[
-                    "Predicted_Units_Sold"
-                ] = pd.to_numeric(
-                    result[
-                        "Predicted_Units_Sold"
-                    ],
-                    errors="coerce"
-                )
-
-
-                result["Region"] = (
-                    selected_region
-                )
-
-                result[
-                    "Current_Date"
-                ] = pd.Timestamp(
-                    current_date
-                )
-
-                result[
-                    "Forecast_Horizon_Days"
-                ] = forecast_horizon
-
-
-                result = result[
-                    [
-                        "Date",
-                        "Region",
-                        "Current_Date",
-                        "Forecast_Horizon_Days",
-                        "Predicted_Units_Sold"
-                    ]
-                ]
-
-
-                st.session_state[
-                    "region_generated_forecast"
-                ] = result
-
-
-                st.session_state[
-                    "region_forecast_signature"
-                ] = region_signature
-
-
-        stored_region_signature = (
-            st.session_state.get(
-                "region_forecast_signature"
-            )
-        )
-
-
-        if (
-            "region_generated_forecast"
-            in st.session_state
-            and
-            stored_region_signature
-            ==
-            region_signature
-        ):
-
-            result = st.session_state[
-                "region_generated_forecast"
-            ]
-
-
-            st.success(
-                "✅ Region forecast generated successfully!"
-            )
-
-
+        if result.empty:
+            st.warning("No region-based forecast is available from the next forecast date.")
+        else:
             c1, c2, c3 = st.columns(3)
 
-
             with c1:
-
                 st.metric(
-                    "📦 Total Forecast",
-                    f"{result['Predicted_Units_Sold'].sum():,.0f} units"
+                    "Total Forecast",
+                    f"{result['Predicted Units Sold'].sum():,} units"
                 )
-
 
             with c2:
-
                 st.metric(
-                    "📊 Average Daily Forecast",
-                    f"{result['Predicted_Units_Sold'].mean():,.2f}"
+                    "Average Daily Forecast",
+                    f"{result['Predicted Units Sold'].mean():,.0f} units"
                 )
-
 
             with c3:
-
                 st.metric(
-                    "📈 Peak Daily Forecast",
-                    f"{result['Predicted_Units_Sold'].max():,.0f} units"
+                    "Peak Forecast",
+                    f"{result['Predicted Units Sold'].max():,} units"
                 )
 
-
-            st.divider()
-
-
-            st.subheader(
-                "📈 Generated Region Forecast"
+            st.caption(
+                f"Forecast period: {result['Forecast Date'].min().strftime('%d %b %Y')} → "
+                f"{result['Forecast Date'].max().strftime('%d %b %Y')}"
             )
 
-
-            st.line_chart(
-                result.set_index(
-                    "Date"
-                )[
-                    "Predicted_Units_Sold"
-                ],
-                height=400
-            )
-
-
+            st.subheader("📈 Region-Based Forecast")
             st.dataframe(
                 result,
                 use_container_width=True,
                 hide_index=True
             )
 
-
             st.download_button(
-                "⬇️ Download Generated Region Forecast CSV",
-                data=result.to_csv(
-                    index=False
-                ).encode("utf-8"),
-                file_name=(
-                    "ForecastIQ_Region_Based_Forecast.csv"
-                ),
+                "⬇️ Download Region Forecast CSV",
+                data=result.to_csv(index=False).encode("utf-8"),
+                file_name="ForecastIQ_Region_Based_Forecast.csv",
                 mime="text/csv",
                 use_container_width=True
             )
 
 
 # ============================================================
-# 3. EXECUTIVE DASHBOARD
+# EXECUTIVE DASHBOARD
 # ============================================================
 
-elif page == "📊 Executive Dashboard":
+elif page == "Executive Dashboard":
 
-    st.header("📊 Executive Dashboard")
+    st.header("Executive Dashboard")
 
     st.caption(
-        "High-level view of historical sales performance "
-        "and business trends."
+        "High-level view of historical sales performance and business trends."
     )
 
-
-    total_units = historical_df[
-        "Units_Sold"
-    ].sum()
-
-
-    total_revenue = historical_df[
-        "Revenue"
-    ].sum()
-
-
-    daily = daily_sales(
-        historical_df
-    )
-
-
+    total_units = historical_df["Units_Sold"].sum()
+    total_revenue = historical_df["Revenue"].sum()
+    daily = daily_sales(historical_df)
     avg_daily = daily.mean()
 
-
     best_product = (
-        historical_df
-        .groupby(
-            "Product_Name"
-        )[
-            "Units_Sold"
-        ]
+        historical_df.groupby("Product_Name")["Units_Sold"]
         .sum()
         .idxmax()
     )
-
 
     best_location = (
-        historical_df
-        .groupby(
-            "Store_Location"
-        )[
-            "Units_Sold"
-        ]
+        historical_df.groupby("Store_Location")["Units_Sold"]
         .sum()
         .idxmax()
     )
-
 
     best_category = (
-        historical_df
-        .groupby(
-            "Category"
-        )[
-            "Units_Sold"
-        ]
+        historical_df.groupby("Category")["Units_Sold"]
         .sum()
         .idxmax()
     )
-
 
     best_channel = (
-        historical_df
-        .groupby(
-            "Sales_Channel"
-        )[
-            "Units_Sold"
-        ]
+        historical_df.groupby("Sales_Channel")["Units_Sold"]
         .sum()
         .idxmax()
     )
-
 
     best_segment = (
-        historical_df
-        .groupby(
-            "Customer_Segment"
-        )[
-            "Units_Sold"
-        ]
+        historical_df.groupby("Customer_Segment")["Units_Sold"]
         .sum()
         .idxmax()
     )
 
-
     c1, c2, c3, c4 = st.columns(4)
 
-
     with c1:
-
-        st.metric(
-            "📦 Total Units Sold",
-            f"{total_units:,.0f}"
-        )
-
+        st.metric("Total Units Sold", f"{total_units:,.0f}")
 
     with c2:
-
-        st.metric(
-            "💰 Total Revenue",
-            f"{total_revenue:,.2f}"
-        )
-
+        st.metric("Total Revenue", f"{total_revenue:,.2f}")
 
     with c3:
-
-        st.metric(
-            "📊 Average Daily Demand",
-            f"{avg_daily:,.2f}"
-        )
-
+        st.metric("Average Daily Demand", f"{avg_daily:,.2f}")
 
     with c4:
-
-        st.metric(
-            "📦 Best Product",
-            best_product
-        )
-
+        st.metric("Best Product", best_product)
 
     st.divider()
 
-
     c1, c2, c3, c4 = st.columns(4)
 
-
     with c1:
-
-        st.metric(
-            "📍 Best Location",
-            best_location
-        )
-
+        st.metric("Best Location", best_location)
 
     with c2:
-
-        st.metric(
-            "🗂️ Best Category",
-            best_category
-        )
-
+        st.metric("Best Category", best_category)
 
     with c3:
-
-        st.metric(
-            "🛒 Best Channel",
-            best_channel
-        )
-
+        st.metric("Best Channel", best_channel)
 
     with c4:
-
-        st.metric(
-            "👥 Best Customer Segment",
-            best_segment
-        )
-
+        st.metric("Best Customer Segment", best_segment)
 
     st.divider()
 
-
-    st.subheader(
-        "📈 Overall Daily Sales Trend"
-    )
-
-
-    st.line_chart(
-        daily,
-        height=400
-    )
-
+    st.subheader("📈 Overall Daily Sales Trend")
+    st.line_chart(daily, height=400)
 
     peak_day = daily.idxmax()
     lowest_day = daily.idxmin()
 
-
     c1, c2 = st.columns(2)
 
-
     with c1:
-
         st.info(
             f"📈 Highest Sales Day\n\n"
             f"{peak_day.strftime('%d %b %Y')} — "
             f"{daily.max():,.0f} units"
         )
 
-
     with c2:
-
         st.warning(
             f"📉 Lowest Sales Day\n\n"
             f"{lowest_day.strftime('%d %b %Y')} — "
             f"{daily.min():,.0f} units"
         )
 
-
     st.divider()
 
+    st.subheader("🚨 Quick Business Alerts")
 
-    st.subheader(
-        "🚨 Quick Business Alerts"
-    )
-
-
-    stock_ratio = _stock_to_ratio(
-        historical_df[
-            "Stock_Availability"
-        ]
-    )
-
-
-    stock_rate = stock_ratio.mean()
-
+    stock_rate = historical_df["Stock_Availability"].mean()
 
     if stock_rate < 0.80:
+        st.warning("Stock availability requires attention.")
 
-        st.warning(
-            "⚠️ Stock availability requires attention."
-        )
-
-
-    promotion_ratio = _flag_to_binary(
-        historical_df[
-            "Promotion_Flag"
-        ]
-    ).mean()
-
-
-    if promotion_ratio > 0.50:
-
+    if historical_df["Promotion_Flag"].mean() > 0.50:
         st.info(
-            "📢 Promotions are present in more than "
-            "50% of historical records."
+            "Promotions are present in more than 50% of historical records."
         )
-
 
     if daily.max() > avg_daily * 1.5:
-
-        st.success(
-            "📈 Peak demand is significantly above average."
-        )
+        st.success("Peak demand is significantly above average.")
 
 
 # ============================================================
-# 4. LOCATION INTELLIGENCE
+# 3. LOCATION INTELLIGENCE
 # ============================================================
 
-elif page == "📍 Location Intelligence":
+elif page == "Location Intelligence":
 
     st.header("📍 Location Intelligence")
-
-    st.caption(
-        "Compare performance across all locations."
-    )
-
+    st.caption("Compare performance across all locations.")
 
     location_summary = (
-        historical_df
-        .groupby(
-            "Store_Location"
-        )
+        historical_df.groupby("Store_Location")
         .agg(
-            Total_Units_Sold=(
-                "Units_Sold",
-                "sum"
-            ),
-            Total_Revenue=(
-                "Revenue",
-                "sum"
-            ),
-            Avg_Price=(
-                "Price",
-                "mean"
-            )
+            Total_Units_Sold=("Units_Sold", "sum"),
+            Total_Revenue=("Revenue", "sum"),
+            Avg_Price=("Price", "mean")
         )
         .reset_index()
     )
 
-
     location_weekly = (
         historical_df
         .set_index("Date")
-        .groupby(
-            "Store_Location"
-        )[
-            "Units_Sold"
-        ]
+        .groupby("Store_Location")["Units_Sold"]
         .resample("W-SUN")
         .sum()
         .reset_index()
     )
 
-
     avg_weekly_location = (
         location_weekly
-        .groupby(
-            "Store_Location"
-        )[
-            "Units_Sold"
-        ]
+        .groupby("Store_Location")["Units_Sold"]
         .mean()
-        .reset_index(
-            name="Avg_Weekly_Demand"
-        )
+        .reset_index(name="Avg_Weekly_Demand")
     )
-
 
     location_summary = location_summary.merge(
         avg_weekly_location,
         on="Store_Location"
     )
 
-
     location_summary["Rank"] = (
-        location_summary[
-            "Total_Units_Sold"
-        ]
-        .rank(
-            method="dense",
-            ascending=False
-        )
+        location_summary["Total_Units_Sold"]
+        .rank(method="dense", ascending=False)
         .astype(int)
     )
 
+    location_summary = location_summary.sort_values("Rank")
 
-    location_summary = (
-        location_summary
-        .sort_values("Rank")
-    )
+    cols = st.columns(len(location_summary))
 
-
-    # Limit display columns to avoid a very wide row
-    metric_cols = st.columns(
-        min(
-            max(
-                len(location_summary),
-                1
-            ),
-            4
-        )
-    )
-
-
-    for i, (_, row) in enumerate(
-        location_summary.iterrows()
-    ):
-
-        with metric_cols[
-            i % len(metric_cols)
-        ]:
-
+    for col, (_, row) in zip(cols, location_summary.iterrows()):
+        with col:
             st.metric(
-                str(
-                    row[
-                        "Store_Location"
-                    ]
-                ),
+                row["Store_Location"],
                 f"{row['Total_Units_Sold']:,.0f}"
             )
-
             st.caption(
                 f"Rank #{row['Rank']} | "
-                f"Avg weekly "
-                f"{row['Avg_Weekly_Demand']:,.0f}"
+                f"Avg weekly {row['Avg_Weekly_Demand']:,.0f}"
             )
-
 
     st.divider()
 
-
-    st.subheader(
-        "📊 Location Performance"
-    )
-
-
+    st.subheader("Location Performance")
     st.dataframe(
         location_summary,
         use_container_width=True,
         hide_index=True
     )
 
-
     st.divider()
 
-
-    st.subheader(
-        "🏆 Which Product Sells Most in Each Location?"
-    )
-
+    st.subheader("🏆 Which Product Sells Most in Each Location?")
 
     location_product = (
-        historical_df
-        .groupby(
-            [
-                "Store_Location",
-                "Product_Name"
-            ]
-        )[
-            "Units_Sold"
-        ]
+        historical_df.groupby(
+            ["Store_Location", "Product_Name"]
+        )["Units_Sold"]
         .sum()
         .reset_index()
     )
 
-
-    top_location_product = (
-        location_product.loc[
-            location_product
-            .groupby(
-                "Store_Location"
-            )[
-                "Units_Sold"
-            ]
-            .idxmax()
-        ]
-    )
-
+    top_location_product = location_product.loc[
+        location_product.groupby("Store_Location")["Units_Sold"].idxmax()
+    ]
 
     st.dataframe(
         top_location_product,
@@ -2558,14 +851,9 @@ elif page == "📍 Location Intelligence":
         hide_index=True
     )
 
-
     st.divider()
 
-
-    st.subheader(
-        "📈 Weekly Demand by Location"
-    )
-
+    st.subheader("📈 Weekly Demand by Location")
 
     location_weekly_pivot = (
         location_weekly
@@ -2577,20 +865,11 @@ elif page == "📍 Location Intelligence":
         .fillna(0)
     )
 
-
-    st.line_chart(
-        location_weekly_pivot,
-        height=400
-    )
-
+    st.line_chart(location_weekly_pivot, height=400)
 
     st.divider()
 
-
-    st.subheader(
-        "🔥 Location × Product"
-    )
-
+    st.subheader("🔥 Location × Product")
 
     location_product_heatmap = pd.pivot_table(
         historical_df,
@@ -2601,20 +880,11 @@ elif page == "📍 Location Intelligence":
         fill_value=0
     )
 
-
-    st.dataframe(
-        location_product_heatmap,
-        use_container_width=True
-    )
-
+    st.dataframe(location_product_heatmap, use_container_width=True)
 
     st.divider()
 
-
-    st.subheader(
-        "🔥 Location × Category"
-    )
-
+    st.subheader("🔥 Location × Category")
 
     location_category_heatmap = pd.pivot_table(
         historical_df,
@@ -2625,221 +895,111 @@ elif page == "📍 Location Intelligence":
         fill_value=0
     )
 
-
-    st.dataframe(
-        location_category_heatmap,
-        use_container_width=True
-    )
+    st.dataframe(location_category_heatmap, use_container_width=True)
 
 
 # ============================================================
-# 5. PRODUCT INTELLIGENCE
+# 4. PRODUCT INTELLIGENCE
 # ============================================================
 
-elif page == "📦 Product Intelligence":
+elif page == "Product Intelligence":
 
     st.header("📦 Product Intelligence")
 
-
     product_summary = (
-        historical_df
-        .groupby(
-            "Product_Name"
-        )
+        historical_df.groupby("Product_Name")
         .agg(
-            Total_Units_Sold=(
-                "Units_Sold",
-                "sum"
-            ),
-            Total_Revenue=(
-                "Revenue",
-                "sum"
-            ),
-            Avg_Price=(
-                "Price",
-                "mean"
-            ),
-            Avg_Discount=(
-                "Discount_Percentage",
-                "mean"
-            )
+            Total_Units_Sold=("Units_Sold", "sum"),
+            Total_Revenue=("Revenue", "sum"),
+            Avg_Price=("Price", "mean"),
+            Avg_Discount=("Discount_Percentage", "mean")
         )
         .reset_index()
-        .sort_values(
-            "Total_Units_Sold",
-            ascending=False
-        )
+        .sort_values("Total_Units_Sold", ascending=False)
     )
 
-
-    st.subheader(
-        "📊 Product Ranking"
-    )
-
-
+    st.subheader("Product Ranking")
     st.dataframe(
         product_summary,
         use_container_width=True,
         hide_index=True
     )
 
-
     st.bar_chart(
-        product_summary.set_index(
-            "Product_Name"
-        )[
-            "Total_Units_Sold"
-        ]
+        product_summary.set_index("Product_Name")["Total_Units_Sold"]
     )
-
 
     st.divider()
 
-
     selected_product = st.selectbox(
-        "📦 Select Product",
-        sorted(
-            historical_df[
-                "Product_Name"
-            ]
-            .dropna()
-            .unique()
-        )
+        "Select Product",
+        sorted(historical_df["Product_Name"].dropna().unique())
     )
 
-
     product_data = historical_df[
-        historical_df[
-            "Product_Name"
-        ]
-        ==
-        selected_product
+        historical_df["Product_Name"] == selected_product
     ]
-
 
     c1, c2, c3, c4 = st.columns(4)
 
-
     with c1:
-
-        st.metric(
-            "📦 Units Sold",
-            f"{product_data['Units_Sold'].sum():,.0f}"
-        )
-
+        st.metric("Units Sold", f"{product_data['Units_Sold'].sum():,.0f}")
 
     with c2:
-
-        st.metric(
-            "💰 Revenue",
-            f"{product_data['Revenue'].sum():,.2f}"
-        )
-
+        st.metric("Revenue", f"{product_data['Revenue'].sum():,.2f}")
 
     with c3:
-
-        st.metric(
-            "💰 Average Price",
-            f"{product_data['Price'].mean():,.2f}"
-        )
-
+        st.metric("Average Price", f"{product_data['Price'].mean():,.2f}")
 
     with c4:
-
         st.metric(
-            "🏷️ Average Discount",
+            "Average Discount",
             f"{product_data['Discount_Percentage'].mean():,.2f}%"
         )
 
-
     st.divider()
-
 
     product_location = (
         product_data
-        .groupby(
-            "Store_Location"
-        )[
-            "Units_Sold"
-        ]
+        .groupby("Store_Location")["Units_Sold"]
         .sum()
-        .sort_values(
-            ascending=False
-        )
+        .sort_values(ascending=False)
     )
 
+    st.subheader("Product × Location Performance")
+    st.bar_chart(product_location)
 
-    st.subheader(
-        "📍 Product × Location Performance"
-    )
-
-
-    st.bar_chart(
-        product_location
-    )
-
-
-    st.subheader(
-        "📅 Weekly Product Sales"
-    )
-
+    st.subheader("Weekly Product Sales")
 
     product_weekly = (
         product_data
-        .set_index("Date")[
-            "Units_Sold"
-        ]
+        .set_index("Date")["Units_Sold"]
         .resample("W-SUN")
         .sum()
     )
 
-
-    st.line_chart(
-        product_weekly
-    )
+    st.line_chart(product_weekly)
 
 
 # ============================================================
-# 6. QUARTER INTELLIGENCE
+# 5. QUARTER INTELLIGENCE
 # ============================================================
 
-elif page == "📅 Quarter Intelligence":
+elif page == "Quarter Intelligence":
 
     st.header("📅 Quarter Intelligence")
 
-
     quarter_product = (
-        historical_df
-        .groupby(
-            [
-                "Quarter",
-                "Product_Name"
-            ]
-        )[
-            "Units_Sold"
-        ]
+        historical_df.groupby(["Quarter", "Product_Name"])["Units_Sold"]
         .sum()
         .reset_index()
     )
 
+    st.subheader("🏆 Which Product Sold Most in Each Quarter?")
 
-    st.subheader(
-        "🏆 Which Product Sold Most in Each Quarter?"
-    )
-
-
-    top_quarter_product = (
-        quarter_product.loc[
-            quarter_product
-            .groupby(
-                "Quarter"
-            )[
-                "Units_Sold"
-            ]
-            .idxmax()
-        ]
-    )
-
+    top_quarter_product = quarter_product.loc[
+        quarter_product.groupby("Quarter")["Units_Sold"].idxmax()
+    ]
 
     st.dataframe(
         top_quarter_product,
@@ -2847,14 +1007,9 @@ elif page == "📅 Quarter Intelligence":
         hide_index=True
     )
 
-
     st.divider()
 
-
-    st.subheader(
-        "📦 Quarter × Product"
-    )
-
+    st.subheader("Quarter × Product")
 
     quarter_product_pivot = pd.pivot_table(
         historical_df,
@@ -2865,20 +1020,11 @@ elif page == "📅 Quarter Intelligence":
         fill_value=0
     )
 
-
-    st.dataframe(
-        quarter_product_pivot,
-        use_container_width=True
-    )
-
+    st.dataframe(quarter_product_pivot, use_container_width=True)
 
     st.divider()
 
-
-    st.subheader(
-        "📍 Quarter × Location"
-    )
-
+    st.subheader("Quarter × Location")
 
     quarter_location = pd.pivot_table(
         historical_df,
@@ -2889,20 +1035,11 @@ elif page == "📅 Quarter Intelligence":
         fill_value=0
     )
 
-
-    st.dataframe(
-        quarter_location,
-        use_container_width=True
-    )
-
+    st.dataframe(quarter_location, use_container_width=True)
 
     st.divider()
 
-
-    st.subheader(
-        "🗂️ Quarter × Category"
-    )
-
+    st.subheader("Quarter × Category")
 
     quarter_category = pd.pivot_table(
         historical_df,
@@ -2913,20 +1050,11 @@ elif page == "📅 Quarter Intelligence":
         fill_value=0
     )
 
-
-    st.dataframe(
-        quarter_category,
-        use_container_width=True
-    )
-
+    st.dataframe(quarter_category, use_container_width=True)
 
     st.divider()
 
-
-    st.subheader(
-        "🛒 Quarter × Channel"
-    )
-
+    st.subheader("Quarter × Channel")
 
     quarter_channel = pd.pivot_table(
         historical_df,
@@ -2937,21 +1065,16 @@ elif page == "📅 Quarter Intelligence":
         fill_value=0
     )
 
-
-    st.dataframe(
-        quarter_channel,
-        use_container_width=True
-    )
+    st.dataframe(quarter_channel, use_container_width=True)
 
 
 # ============================================================
-# 7. DEMAND DRIVERS
+# 6. DEMAND DRIVERS
 # ============================================================
 
-elif page == "🎯 Demand Drivers":
+elif page == "Demand Drivers":
 
     st.header("🎯 Demand Drivers")
-
 
     numeric_driver_columns = [
         "Price",
@@ -2963,60 +1086,34 @@ elif page == "🎯 Demand Drivers":
         "Units_Sold"
     ]
 
-
     available_drivers = [
-        col
-        for col in numeric_driver_columns
+        col for col in numeric_driver_columns
         if col in historical_df.columns
     ]
 
+    corr = historical_df[available_drivers].corr()
 
-    corr = historical_df[
-        available_drivers
-    ].corr()
-
-
-    st.subheader(
-        "📊 Overall Correlation Matrix"
-    )
-
-
-    st.dataframe(
-        corr.round(3),
-        use_container_width=True
-    )
-
+    st.subheader("Overall Correlation Matrix")
+    st.dataframe(corr.round(3), use_container_width=True)
 
     st.divider()
 
-
     target_corr = (
-        corr[
-            "Units_Sold"
-        ]
+        corr["Units_Sold"]
         .drop("Units_Sold")
         .sort_values()
     )
 
-
-    st.subheader(
-        "📈 Relationships with Units Sold"
-    )
-
-
+    st.subheader("Relationships with Units Sold")
     st.dataframe(
-        target_corr.to_frame(
-            "Correlation"
-        ),
+        target_corr.to_frame("Correlation"),
         use_container_width=True
     )
 
-
     st.divider()
 
-
     driver = st.selectbox(
-        "🎯 Select Demand Driver",
+        "Select Demand Driver",
         [
             "Price",
             "Discount_Percentage",
@@ -3027,14 +1124,7 @@ elif page == "🎯 Demand Drivers":
         ]
     )
 
-
-    scatter_data = historical_df[
-        [
-            driver,
-            "Units_Sold"
-        ]
-    ].dropna()
-
+    scatter_data = historical_df[[driver, "Units_Sold"]].dropna()
 
     st.scatter_chart(
         scatter_data,
@@ -3042,267 +1132,123 @@ elif page == "🎯 Demand Drivers":
         y="Units_Sold"
     )
 
-
-    st.info(
-        "⚠️ Correlation shows association, not causation."
-    )
-
+    st.info("⚠️ Correlation shows association, not causation.")
 
     st.divider()
 
-
-    st.subheader(
-        "📢 Promotion vs Demand"
-    )
-
+    st.subheader("Promotion vs Demand")
 
     promotion_sales = (
-        historical_df
-        .assign(
-            Promotion_Binary=_flag_to_binary(
-                historical_df[
-                    "Promotion_Flag"
-                ]
-            )
-        )
-        .groupby(
-            "Promotion_Binary"
-        )[
-            "Units_Sold"
-        ]
+        historical_df.groupby("Promotion_Flag")["Units_Sold"]
         .mean()
     )
 
+    st.bar_chart(promotion_sales)
 
-    st.bar_chart(
-        promotion_sales
-    )
-
-
-    st.subheader(
-        "📦 Stock Availability vs Demand"
-    )
-
+    st.subheader("Stock Availability vs Demand")
 
     stock_sales = (
-        historical_df
-        .groupby(
-            "Stock_Availability"
-        )[
-            "Units_Sold"
-        ]
+        historical_df.groupby("Stock_Availability")["Units_Sold"]
         .mean()
     )
 
-
-    st.bar_chart(
-        stock_sales
-    )
+    st.bar_chart(stock_sales)
 
 
 # ============================================================
-# 8. PRICING INTELLIGENCE
+# 7. PRICING INTELLIGENCE
 # ============================================================
 
-elif page == "💰 Pricing Intelligence":
+elif page == "Pricing Intelligence":
 
     st.header("💰 Pricing Intelligence")
 
-
     yearly_price = (
         historical_df
-        .groupby(
-            historical_df[
-                "Date"
-            ].dt.year
-        )[
-            "Price"
-        ]
+        .groupby(historical_df["Date"].dt.year)["Price"]
         .mean()
     )
 
-
-    st.subheader(
-        "📅 Average Price by Year"
-    )
-
-
-    st.line_chart(
-        yearly_price
-    )
-
+    st.subheader("Average Price by Year")
+    st.line_chart(yearly_price)
 
     st.divider()
 
-
-    st.subheader(
-        "📦 Product Price Trends"
-    )
-
+    st.subheader("Product Price Trends")
 
     product_price = (
         historical_df
-        .assign(
-            Year=historical_df[
-                "Date"
-            ].dt.year
-        )
-        .groupby(
-            [
-                "Year",
-                "Product_Name"
-            ]
-        )[
-            "Price"
-        ]
+        .assign(Year=historical_df["Date"].dt.year)
+        .groupby(["Year", "Product_Name"])["Price"]
         .mean()
         .unstack()
     )
 
-
-    st.line_chart(
-        product_price
-    )
-
+    st.line_chart(product_price)
 
     st.divider()
 
-
-    st.subheader(
-        "📍 Location Price Trends"
-    )
-
+    st.subheader("Location Price Trends")
 
     location_price = (
         historical_df
-        .assign(
-            Year=historical_df[
-                "Date"
-            ].dt.year
-        )
-        .groupby(
-            [
-                "Year",
-                "Store_Location"
-            ]
-        )[
-            "Price"
-        ]
+        .assign(Year=historical_df["Date"].dt.year)
+        .groupby(["Year", "Store_Location"])["Price"]
         .mean()
         .unstack()
     )
 
-
-    st.line_chart(
-        location_price
-    )
-
+    st.line_chart(location_price)
 
     st.divider()
 
-
-    st.subheader(
-        "💰 Our Price vs Competitor Price"
-    )
-
+    st.subheader("Our Price vs Competitor Price")
 
     price_compare = historical_df[
-        [
-            "Date",
-            "Price",
-            "Competitor_Price"
-        ]
-    ].set_index(
-        "Date"
-    )
+        ["Date", "Price", "Competitor_Price"]
+    ].set_index("Date")
 
-
-    st.line_chart(
-        price_compare
-    )
-
+    st.line_chart(price_compare)
 
     st.divider()
 
-
-    st.subheader(
-        "🏷️ Discount Trend"
-    )
-
+    st.subheader("Discount Trend")
 
     discount_trend = (
         historical_df
-        .set_index("Date")[
-            "Discount_Percentage"
-        ]
+        .set_index("Date")["Discount_Percentage"]
         .resample("W-SUN")
         .mean()
     )
 
-
-    st.line_chart(
-        discount_trend
-    )
+    st.line_chart(discount_trend)
 
 
 # ============================================================
-# 9. PROMOTION INTELLIGENCE
+# 8. PROMOTION INTELLIGENCE
 # ============================================================
 
-elif page == "📢 Promotion Intelligence":
+elif page == "Promotion Intelligence":
 
     st.header("📢 Promotion Intelligence")
 
-
-    promo_data = historical_df.copy()
-
-
-    promo_data[
-        "Promotion_Binary"
-    ] = _flag_to_binary(
-        promo_data[
-            "Promotion_Flag"
-        ]
-    )
-
-
     promo_summary = (
-        promo_data
-        .groupby(
-            "Promotion_Binary"
-        )
+        historical_df
+        .groupby("Promotion_Flag")
         .agg(
-            Total_Units=(
-                "Units_Sold",
-                "sum"
-            ),
-            Average_Units=(
-                "Units_Sold",
-                "mean"
-            ),
-            Total_Revenue=(
-                "Revenue",
-                "sum"
-            ),
-            Average_Discount=(
-                "Discount_Percentage",
-                "mean"
-            )
+            Total_Units=("Units_Sold", "sum"),
+            Average_Units=("Units_Sold", "mean"),
+            Total_Revenue=("Revenue", "sum"),
+            Average_Discount=("Discount_Percentage", "mean")
         )
         .reset_index()
     )
 
-
-    promo_summary[
-        "Promotion_Status"
-    ] = np.where(
-        promo_summary[
-            "Promotion_Binary"
-        ] == 1,
+    promo_summary["Promotion_Status"] = np.where(
+        promo_summary["Promotion_Flag"] == 1,
         "Promotion",
         "No Promotion"
     )
-
 
     st.dataframe(
         promo_summary,
@@ -3310,69 +1256,43 @@ elif page == "📢 Promotion Intelligence":
         hide_index=True
     )
 
-
     st.divider()
 
-
-    st.subheader(
-        "📍 Promotion Impact by Location"
-    )
-
+    st.subheader("Promotion Impact by Location")
 
     promo_location = pd.pivot_table(
-        promo_data,
+        historical_df,
         index="Store_Location",
-        columns="Promotion_Binary",
+        columns="Promotion_Flag",
         values="Units_Sold",
         aggfunc="mean",
         fill_value=0
     )
 
-
-    st.dataframe(
-        promo_location,
-        use_container_width=True
-    )
-
+    st.dataframe(promo_location, use_container_width=True)
 
     st.divider()
 
-
-    st.subheader(
-        "📦 Promotion Impact by Product"
-    )
-
+    st.subheader("Promotion Impact by Product")
 
     promo_product = pd.pivot_table(
-        promo_data,
+        historical_df,
         index="Product_Name",
-        columns="Promotion_Binary",
+        columns="Promotion_Flag",
         values="Units_Sold",
         aggfunc="mean",
         fill_value=0
     )
 
-
-    st.dataframe(
-        promo_product,
-        use_container_width=True
-    )
-
+    st.dataframe(promo_product, use_container_width=True)
 
     st.divider()
 
-
-    st.subheader(
-        "🏷️ Discount vs Demand"
-    )
-
+    st.subheader("Discount vs Demand")
 
     st.scatter_chart(
         historical_df[
-            [
-                "Discount_Percentage",
-                "Units_Sold"
-            ]
+            ["Discount_Percentage", "Units_Sold"]
         ].dropna(),
         x="Discount_Percentage",
         y="Units_Sold"
@@ -3380,61 +1300,30 @@ elif page == "📢 Promotion Intelligence":
 
 
 # ============================================================
-# 10. CATEGORY INTELLIGENCE
+# 9. CATEGORY INTELLIGENCE
 # ============================================================
 
-elif page == "🗂️ Category Intelligence":
+elif page == "Category Intelligence":
 
     st.header("🗂️ Category Intelligence")
 
-
     category_summary = (
         historical_df
-        .groupby(
-            "Category"
-        )
+        .groupby("Category")
         .agg(
-            Units_Sold=(
-                "Units_Sold",
-                "sum"
-            ),
-            Revenue=(
-                "Revenue",
-                "sum"
-            )
+            Units_Sold=("Units_Sold", "sum"),
+            Revenue=("Revenue", "sum")
         )
-        .sort_values(
-            "Units_Sold",
-            ascending=False
-        )
+        .sort_values("Units_Sold", ascending=False)
     )
 
-
-    st.subheader(
-        "📊 Category Ranking"
-    )
-
-
-    st.dataframe(
-        category_summary,
-        use_container_width=True
-    )
-
-
-    st.bar_chart(
-        category_summary[
-            "Units_Sold"
-        ]
-    )
-
+    st.subheader("Category Ranking")
+    st.dataframe(category_summary, use_container_width=True)
+    st.bar_chart(category_summary["Units_Sold"])
 
     st.divider()
 
-
-    st.subheader(
-        "🗂️ Category × Location"
-    )
-
+    st.subheader("Category × Location")
 
     category_location = pd.pivot_table(
         historical_df,
@@ -3445,20 +1334,11 @@ elif page == "🗂️ Category Intelligence":
         fill_value=0
     )
 
-
-    st.dataframe(
-        category_location,
-        use_container_width=True
-    )
-
+    st.dataframe(category_location, use_container_width=True)
 
     st.divider()
 
-
-    st.subheader(
-        "📦 Category × Product"
-    )
-
+    st.subheader("Category × Product")
 
     category_product = pd.pivot_table(
         historical_df,
@@ -3469,20 +1349,11 @@ elif page == "🗂️ Category Intelligence":
         fill_value=0
     )
 
-
-    st.dataframe(
-        category_product,
-        use_container_width=True
-    )
-
+    st.dataframe(category_product, use_container_width=True)
 
     st.divider()
 
-
-    st.subheader(
-        "📅 Category × Quarter"
-    )
-
+    st.subheader("Category × Quarter")
 
     category_quarter = pd.pivot_table(
         historical_df,
@@ -3493,64 +1364,32 @@ elif page == "🗂️ Category Intelligence":
         fill_value=0
     )
 
-
-    st.dataframe(
-        category_quarter,
-        use_container_width=True
-    )
+    st.dataframe(category_quarter, use_container_width=True)
 
 
 # ============================================================
-# 11. SALES CHANNEL INTELLIGENCE
+# 10. SALES CHANNEL INTELLIGENCE
 # ============================================================
 
-elif page == "🛒 Sales Channel Intelligence":
+elif page == "Sales Channel Intelligence":
 
     st.header("🛒 Sales Channel Intelligence")
 
-
     channel_summary = (
         historical_df
-        .groupby(
-            "Sales_Channel"
-        )
+        .groupby("Sales_Channel")
         .agg(
-            Units_Sold=(
-                "Units_Sold",
-                "sum"
-            ),
-            Revenue=(
-                "Revenue",
-                "sum"
-            )
+            Units_Sold=("Units_Sold", "sum"),
+            Revenue=("Revenue", "sum")
         )
-        .sort_values(
-            "Units_Sold",
-            ascending=False
-        )
+        .sort_values("Units_Sold", ascending=False)
     )
 
-
-    st.subheader(
-        "📊 Channel Performance"
-    )
-
-
-    st.dataframe(
-        channel_summary,
-        use_container_width=True
-    )
-
-
-    st.bar_chart(
-        channel_summary[
-            "Units_Sold"
-        ]
-    )
-
+    st.subheader("Channel Performance")
+    st.dataframe(channel_summary, use_container_width=True)
+    st.bar_chart(channel_summary["Units_Sold"])
 
     st.divider()
-
 
     for dimension in [
         "Store_Location",
@@ -3559,10 +1398,7 @@ elif page == "🛒 Sales Channel Intelligence":
         "Customer_Segment"
     ]:
 
-        st.subheader(
-            f"🛒 Channel × {dimension}"
-        )
-
+        st.subheader(f"Channel × {dimension}")
 
         table = pd.pivot_table(
             historical_df,
@@ -3573,64 +1409,32 @@ elif page == "🛒 Sales Channel Intelligence":
             fill_value=0
         )
 
-
-        st.dataframe(
-            table,
-            use_container_width=True
-        )
+        st.dataframe(table, use_container_width=True)
 
 
 # ============================================================
-# 12. CUSTOMER INTELLIGENCE
+# 11. CUSTOMER INTELLIGENCE
 # ============================================================
 
-elif page == "👥 Customer Intelligence":
+elif page == "Customer Intelligence":
 
     st.header("👥 Customer Intelligence")
 
-
     segment_summary = (
         historical_df
-        .groupby(
-            "Customer_Segment"
-        )
+        .groupby("Customer_Segment")
         .agg(
-            Units_Sold=(
-                "Units_Sold",
-                "sum"
-            ),
-            Revenue=(
-                "Revenue",
-                "sum"
-            )
+            Units_Sold=("Units_Sold", "sum"),
+            Revenue=("Revenue", "sum")
         )
-        .sort_values(
-            "Units_Sold",
-            ascending=False
-        )
+        .sort_values("Units_Sold", ascending=False)
     )
 
-
-    st.subheader(
-        "📊 Customer Segment Performance"
-    )
-
-
-    st.dataframe(
-        segment_summary,
-        use_container_width=True
-    )
-
-
-    st.bar_chart(
-        segment_summary[
-            "Units_Sold"
-        ]
-    )
-
+    st.subheader("Customer Segment Performance")
+    st.dataframe(segment_summary, use_container_width=True)
+    st.bar_chart(segment_summary["Units_Sold"])
 
     st.divider()
-
 
     for dimension in [
         "Store_Location",
@@ -3639,10 +1443,7 @@ elif page == "👥 Customer Intelligence":
         "Sales_Channel"
     ]:
 
-        st.subheader(
-            f"👥 Segment × {dimension}"
-        )
-
+        st.subheader(f"Segment × {dimension}")
 
         table = pd.pivot_table(
             historical_df,
@@ -3653,347 +1454,180 @@ elif page == "👥 Customer Intelligence":
             fill_value=0
         )
 
-
-        st.dataframe(
-            table,
-            use_container_width=True
-        )
+        st.dataframe(table, use_container_width=True)
 
 
 # ============================================================
-# 13. WEEKLY SALES INTELLIGENCE
+# 12. WEEKLY SALES INTELLIGENCE
 # ============================================================
 
-elif page == "📅 Weekly Sales Intelligence":
+elif page == "Weekly Sales Intelligence":
 
     st.header("📅 Weekly Sales Intelligence")
 
+    weekly = weekly_sales(historical_df)
 
-    weekly = weekly_sales(
-        historical_df
-    )
+    weekly_df = weekly.to_frame("Units_Sold")
 
-
-    weekly_df = weekly.to_frame(
-        "Units_Sold"
-    )
-
-
-    weekly_df[
-        "WoW_Growth_%"
-    ] = (
-        weekly_df[
-            "Units_Sold"
-        ]
+    weekly_df["WoW_Growth_%"] = (
+        weekly_df["Units_Sold"]
         .pct_change()
-        .replace(
-            [
-                np.inf,
-                -np.inf
-            ],
-            np.nan
-        )
-        *
-        100
+        .replace([np.inf, -np.inf], np.nan)
+        * 100
     )
 
-
-    weekly_df[
-        "Rolling_Mean_4"
-    ] = (
-        weekly_df[
-            "Units_Sold"
-        ]
-        .rolling(4)
-        .mean()
+    weekly_df["Rolling_Mean_4"] = (
+        weekly_df["Units_Sold"].rolling(4).mean()
     )
 
-
-    weekly_df[
-        "Rolling_Std_4"
-    ] = (
-        weekly_df[
-            "Units_Sold"
-        ]
-        .rolling(4)
-        .std()
+    weekly_df["Rolling_Std_4"] = (
+        weekly_df["Units_Sold"].rolling(4).std()
     )
 
-
-    st.subheader(
-        "📈 Weekly Sales"
-    )
-
+    st.subheader("Weekly Sales")
 
     st.line_chart(
-        weekly_df[
-            [
-                "Units_Sold",
-                "Rolling_Mean_4"
-            ]
-        ],
+        weekly_df[["Units_Sold", "Rolling_Mean_4"]],
         height=400
     )
 
-
     st.divider()
-
 
     c1, c2, c3 = st.columns(3)
 
-
     with c1:
-
-        st.metric(
-            "📊 Average Weekly Demand",
-            f"{weekly.mean():,.0f}"
-        )
-
+        st.metric("Average Weekly Demand", f"{weekly.mean():,.0f}")
 
     with c2:
-
-        st.metric(
-            "📈 Peak Week",
-            f"{weekly.max():,.0f}"
-        )
-
+        st.metric("Peak Week", f"{weekly.max():,.0f}")
 
     with c3:
-
-        st.metric(
-            "📉 Demand Volatility",
-            f"{weekly.std():,.0f}"
-        )
-
+        st.metric("Demand Volatility", f"{weekly.std():,.0f}")
 
     st.divider()
 
-
-    st.subheader(
-        "📈 Week-over-Week Growth"
-    )
-
-
-    st.line_chart(
-        weekly_df[
-            "WoW_Growth_%"
-        ],
-        height=350
-    )
-
+    st.subheader("Week-over-Week Growth")
+    st.line_chart(weekly_df["WoW_Growth_%"], height=350)
 
     st.divider()
 
-
-    st.subheader(
-        "📈 Peak Weeks"
-    )
-
+    st.subheader("Peak Weeks")
 
     st.dataframe(
-        weekly_df
-        .sort_values(
+        weekly_df.sort_values(
             "Units_Sold",
             ascending=False
-        )
-        .head(10),
+        ).head(10),
         use_container_width=True
     )
 
-
-    st.subheader(
-        "📉 Low-Demand Weeks"
-    )
-
+    st.subheader("Low-Demand Weeks")
 
     st.dataframe(
-        weekly_df
-        .sort_values(
-            "Units_Sold"
-        )
-        .head(10),
+        weekly_df.sort_values("Units_Sold").head(10),
         use_container_width=True
     )
 
 
 # ============================================================
-# 14. FORECAST INTELLIGENCE
+# 13. FORECAST INTELLIGENCE
 # ============================================================
 
-elif page == "🔮 Forecast Intelligence":
+elif page == "Forecast Intelligence":
 
     st.header("🔮 Forecast Intelligence")
 
-
     forecast_display = forecast_df.copy()
 
-
-    forecast_display[
-        "Date"
-    ] = pd.to_datetime(
-        forecast_display[
-            "Date"
-        ],
-        errors="coerce"
+    forecast_display["Date"] = pd.to_datetime(
+        forecast_display["Date"]
     )
 
-
-    forecast_display = (
-        forecast_display
-        .dropna(
-            subset=["Date"]
-        )
-        .sort_values("Date")
-    )
-
-
-    st.subheader(
-        "📈 Daily Forecast"
-    )
-
+    st.subheader("Daily Forecast — Sep 2026 to Dec 2027")
 
     st.line_chart(
-        forecast_display
-        .set_index("Date")[
+        forecast_display.set_index("Date")[
             "Predicted_Units_Sold"
         ],
         height=450
     )
 
-
     st.divider()
-
 
     total_forecast = forecast_display[
         "Predicted_Units_Sold"
     ].sum()
 
-
     peak_forecast = forecast_display.loc[
-        forecast_display[
-            "Predicted_Units_Sold"
-        ].idxmax()
+        forecast_display["Predicted_Units_Sold"].idxmax()
     ]
-
 
     lowest_forecast = forecast_display.loc[
-        forecast_display[
-            "Predicted_Units_Sold"
-        ].idxmin()
+        forecast_display["Predicted_Units_Sold"].idxmin()
     ]
-
 
     c1, c2, c3 = st.columns(3)
 
-
     with c1:
-
         st.metric(
-            "📦 Total Forecast",
+            "Total Forecast",
             f"{total_forecast:,.0f} units"
         )
 
-
     with c2:
-
         st.metric(
-            "📈 Peak Forecast Day",
-            peak_forecast[
-                "Date"
-            ].strftime(
-                "%d %b %Y"
-            )
+            "Peak Forecast Day",
+            peak_forecast["Date"].strftime("%d %b %Y")
         )
-
 
     with c3:
-
         st.metric(
-            "📉 Lowest Forecast Day",
-            lowest_forecast[
-                "Date"
-            ].strftime(
-                "%d %b %Y"
-            )
+            "Lowest Forecast Day",
+            lowest_forecast["Date"].strftime("%d %b %Y")
         )
-
 
     st.divider()
 
-
-    st.subheader(
-        "📅 Monthly Forecast"
-    )
-
+    st.subheader("Monthly Forecast")
 
     monthly_forecast = (
         forecast_display
-        .set_index("Date")[
-            "Predicted_Units_Sold"
-        ]
+        .set_index("Date")["Predicted_Units_Sold"]
         .resample("M")
         .sum()
     )
 
-
-    st.bar_chart(
-        monthly_forecast
-    )
-
+    st.bar_chart(monthly_forecast)
 
     st.divider()
 
-
-    st.subheader(
-        "📅 Quarterly Forecast"
-    )
-
+    st.subheader("Quarterly Forecast")
 
     quarterly_forecast = (
         forecast_display
-        .set_index("Date")[
-            "Predicted_Units_Sold"
-        ]
+        .set_index("Date")["Predicted_Units_Sold"]
         .resample("Q")
         .sum()
     )
 
-
-    st.bar_chart(
-        quarterly_forecast
-    )
-
+    st.bar_chart(quarterly_forecast)
 
     st.divider()
 
-
-    st.subheader(
-        "📅 2027 Forecast"
-    )
-
+    st.subheader("2027 Forecast")
 
     forecast_2027 = forecast_display[
-        forecast_display[
-            "Date"
-        ].dt.year
-        ==
-        2027
+        forecast_display["Date"].dt.year == 2027
     ]
 
-
     st.metric(
-        "📦 Total 2027 Forecast",
+        "Total 2027 Forecast",
         f"{forecast_2027['Predicted_Units_Sold'].sum():,.0f} units"
     )
 
-
     st.divider()
 
-
-    st.subheader(
-        "📋 Forecast Data"
-    )
-
+    st.subheader("Forecast Data")
 
     st.dataframe(
         forecast_display,
@@ -4001,23 +1635,17 @@ elif page == "🔮 Forecast Intelligence":
         hide_index=True
     )
 
-
     st.divider()
-
 
     c1, c2 = st.columns(2)
 
-
     with c1:
-
         download_csv(
             forecast_display,
             "ForecastIQ_Daily_Forecast.csv"
         )
 
-
     with c2:
-
         download_excel(
             forecast_display,
             "ForecastIQ_Daily_Forecast.xlsx"
@@ -4025,52 +1653,28 @@ elif page == "🔮 Forecast Intelligence":
 
 
 # ============================================================
-# 15. MODEL INTELLIGENCE
+# 14. MODEL INTELLIGENCE
 # ============================================================
 
-elif page == "🤖 Model Intelligence":
+elif page == "Model Intelligence":
 
     st.header("🤖 Model Intelligence")
 
-
     st.caption(
-        "Final model evaluation from the completed "
-        "XGBoost forecasting project."
+        "Final model evaluation from the completed XGBoost forecasting project."
     )
 
-
     model_results = pd.DataFrame({
-
-        "Model": [
-            "Final Trial 84 Log-XGBoost"
-        ],
-
-        "MAE": [
-            2.280793
-        ],
-
-        "MSE": [
-            25.524807
-        ],
-
-        "RMSE": [
-            5.052208
-        ],
-
-        "MAPE": [
-            11.136303
-        ]
-
+        "Model": ["Final Trial 84 Log-XGBoost"],
+        "MAE": [2.280793],
+        "MSE": [25.524807],
+        "RMSE": [5.052208],
+        "MAPE": [11.136303]
     })
-
 
     model_results["Rank"] = [1]
 
-
-    st.subheader(
-        "📊 Final Model Performance"
-    )
-
+    st.subheader("Final Model Performance")
 
     st.dataframe(
         model_results,
@@ -4078,135 +1682,76 @@ elif page == "🤖 Model Intelligence":
         hide_index=True
     )
 
-
     st.divider()
 
-
-    st.subheader(
-        "🏆 Selected Model"
-    )
-
+    st.subheader("🏆 Best Model")
 
     st.success(
         "Trial 84 Log-XGBoost is the final selected model."
     )
 
-
     c1, c2, c3, c4 = st.columns(4)
 
-
     with c1:
-
-        st.metric(
-            "MAE",
-            "2.280793"
-        )
-
+        st.metric("MAE", "2.280793")
 
     with c2:
-
-        st.metric(
-            "MSE",
-            "25.524807"
-        )
-
+        st.metric("MSE", "25.524807")
 
     with c3:
-
-        st.metric(
-            "RMSE",
-            "5.052208"
-        )
-
+        st.metric("RMSE", "5.052208")
 
     with c4:
-
-        st.metric(
-            "MAPE",
-            "11.136303%"
-        )
-
+        st.metric("MAPE", "11.136303%")
 
     st.divider()
 
+    st.subheader("Model Configuration")
 
-    st.subheader(
-        "⚙️ Model Configuration"
-    )
-
-
-    st.write(
-        "Algorithm: XGBoost Regressor"
-    )
-
-    st.write(
-        "Target transformation: log1p(Units_Sold)"
-    )
-
-    st.write(
-        "Prediction transformation: expm1()"
-    )
-
-    st.write(
-        "Cross-validation: TimeSeriesSplit"
-    )
-
-    st.write(
-        "Final selected model: Optuna Trial 84"
-    )
-
-    st.write(
-        "Forecast frequency: Daily"
-    )
+    st.write("Algorithm: XGBoost Regressor")
+    st.write("Target transformation: log1p(Unit_Sold)")
+    st.write("Prediction transformation: expm1()")
+    st.write("Cross-validation: TimeSeriesSplit")
+    st.write("Final selected model: Optuna Trial 84")
+    st.write("Forecast frequency: Daily")
 
 
 # ============================================================
-# 16. CROSS-ANALYSIS EXPLORER
+# 15. CROSS-ANALYSIS EXPLORER
 # ============================================================
 
-elif page == "🔍 Cross-Analysis Explorer":
+elif page == "Cross-Analysis Explorer":
 
     st.header("🔍 Cross-Analysis Explorer")
 
-
     st.caption(
-        "Select dimensions and metric to explore "
-        "business relationships."
+        "Select dimensions and metric to explore business relationships."
     )
 
-
     dimensions = [
-
         "Store_Location",
         "Product_Name",
         "Category",
         "Sales_Channel",
         "Customer_Segment",
         "Quarter"
-
     ]
 
-
     x_dimension = st.selectbox(
-        "🔍 Primary Dimension",
+        "Primary Dimension",
         dimensions
     )
 
-
     breakdown_dimension = st.selectbox(
-        "🔀 Breakdown Dimension",
-        ["None"]
-        +
-        [
-            x
-            for x in dimensions
+        "Breakdown Dimension",
+        ["None"] + [
+            x for x in dimensions
             if x != x_dimension
         ]
     )
 
-
     metric = st.selectbox(
-        "📊 Metric",
+        "Metric",
         [
             "Units_Sold",
             "Revenue",
@@ -4216,36 +1761,23 @@ elif page == "🔍 Cross-Analysis Explorer":
         ]
     )
 
-
     if breakdown_dimension == "None":
 
         result = (
             historical_df
-            .groupby(
-                x_dimension
-            )[metric]
+            .groupby(x_dimension)[metric]
             .sum()
-            .sort_values(
-                ascending=False
-            )
+            .sort_values(ascending=False)
         )
 
-
-        st.subheader(
-            f"📊 {metric} by {x_dimension}"
-        )
-
+        st.subheader(f"{metric} by {x_dimension}")
 
         st.dataframe(
             result.to_frame(),
             use_container_width=True
         )
 
-
-        st.bar_chart(
-            result
-        )
-
+        st.bar_chart(result)
 
     else:
 
@@ -4258,98 +1790,45 @@ elif page == "🔍 Cross-Analysis Explorer":
             fill_value=0
         )
 
-
         st.subheader(
-            f"🔍 {x_dimension} × "
-            f"{breakdown_dimension}"
+            f"{x_dimension} × {breakdown_dimension}"
         )
-
 
         st.dataframe(
             result,
             use_container_width=True
         )
 
-
-        st.bar_chart(
-            result
-        )
+        st.bar_chart(result)
 
 
 # ============================================================
-# 17. DEMAND OPPORTUNITY FINDER
+# 16. DEMAND OPPORTUNITY FINDER
 # ============================================================
 
-elif page == "💡 Demand Opportunity Finder":
+elif page == "Demand Opportunity Finder":
 
     st.header("💡 Demand Opportunity Finder")
 
-
     product_demand = (
         historical_df
-        .groupby(
-            "Product_Name"
-        )
+        .groupby("Product_Name")
         .agg(
-            Units_Sold=(
-                "Units_Sold",
-                "sum"
-            ),
-            Avg_Stock_Availability=(
-                "Stock_Availability",
-                "mean"
-            ),
-            Avg_Marketing_Spend=(
-                "Marketing_Spend",
-                "mean"
-            ),
-            Avg_Price=(
-                "Price",
-                "mean"
-            )
+            Units_Sold=("Units_Sold", "sum"),
+            Avg_Stock_Availability=("Stock_Availability", "mean"),
+            Avg_Marketing_Spend=("Marketing_Spend", "mean"),
+            Avg_Price=("Price", "mean")
         )
         .reset_index()
     )
 
-
-    # Normalize stock for threshold comparison
-
-    stock_ratio = _stock_to_ratio(
-        product_demand[
-            "Avg_Stock_Availability"
-        ]
-    )
-
-    product_demand[
-        "Stock_Ratio"
-    ] = stock_ratio
-
-
-    product_demand[
-        "Stock_Percentage"
-    ] = (
-        product_demand[
-            "Stock_Ratio"
-        ]
-        *
-        100
-    )
-
-
-    st.subheader(
-        "📦 High-Demand Products"
-    )
-
+    st.subheader("📦 High-Demand Products")
 
     high_demand = (
         product_demand
-        .sort_values(
-            "Units_Sold",
-            ascending=False
-        )
+        .sort_values("Units_Sold", ascending=False)
         .head(10)
     )
-
 
     st.dataframe(
         high_demand,
@@ -4357,86 +1836,47 @@ elif page == "💡 Demand Opportunity Finder":
         hide_index=True
     )
 
-
     st.divider()
 
+    st.subheader("⚠️ High Demand + Low Stock")
 
-    st.subheader(
-        "⚠️ High Demand + Low Stock"
-    )
+    high_demand_low_stock = product_demand[
+        (
+            product_demand["Units_Sold"]
+            >= product_demand["Units_Sold"].median()
+        )
+        &
+        (
+            product_demand["Avg_Stock_Availability"] < 0.80
+        )
+    ]
 
-
-    high_demand_low_stock = (
-        product_demand[
-            (
-                product_demand[
-                    "Units_Sold"
-                ]
-                >=
-                product_demand[
-                    "Units_Sold"
-                ].median()
-            )
-            &
-            (
-                product_demand[
-                    "Stock_Ratio"
-                ]
-                <
-                0.80
-            )
-        ]
-    )
-
-
-    if len(
-        high_demand_low_stock
-    ) > 0:
-
+    if len(high_demand_low_stock) > 0:
         st.dataframe(
             high_demand_low_stock,
             use_container_width=True,
             hide_index=True
         )
-
     else:
-
         st.success(
-            "No products currently meet the "
-            "high-demand + low-stock condition."
+            "No products currently meet the high-demand + low-stock condition."
         )
-
 
     st.divider()
 
-
-    st.subheader(
-        "💰 High Marketing + Low Sales"
-    )
-
+    st.subheader("💰 High Marketing + Low Sales")
 
     marketing_opportunity = product_demand[
         (
-            product_demand[
-                "Avg_Marketing_Spend"
-            ]
-            >=
-            product_demand[
-                "Avg_Marketing_Spend"
-            ].median()
+            product_demand["Avg_Marketing_Spend"]
+            >= product_demand["Avg_Marketing_Spend"].median()
         )
         &
         (
-            product_demand[
-                "Units_Sold"
-            ]
-            <
-            product_demand[
-                "Units_Sold"
-            ].median()
+            product_demand["Units_Sold"]
+            < product_demand["Units_Sold"].median()
         )
     ]
-
 
     st.dataframe(
         marketing_opportunity,
@@ -4444,130 +1884,54 @@ elif page == "💡 Demand Opportunity Finder":
         hide_index=True
     )
 
-
     st.divider()
 
-
-    st.subheader(
-        "📈 Fast-Growing Products"
-    )
-
+    st.subheader("📈 Fast-Growing Products")
 
     product_weekly = (
         historical_df
         .assign(
-            Week=historical_df[
-                "Date"
-            ]
-            .dt
-            .to_period("W")
-            .apply(
-                lambda x:
-                x.start_time
-            )
+            Week=historical_df["Date"]
+            .dt.to_period("W")
+            .apply(lambda x: x.start_time)
         )
-        .groupby(
-            [
-                "Week",
-                "Product_Name"
-            ]
-        )[
-            "Units_Sold"
-        ]
+        .groupby(["Week", "Product_Name"])["Units_Sold"]
         .sum()
         .reset_index()
     )
 
-
     growth_results = []
 
-
-    for product in (
-        product_weekly[
-            "Product_Name"
-        ].unique()
-    ):
+    for product in product_weekly["Product_Name"].unique():
 
         p = product_weekly[
-            product_weekly[
-                "Product_Name"
-            ]
-            ==
-            product
-        ].sort_values(
-            "Week"
-        )
-
+            product_weekly["Product_Name"] == product
+        ].sort_values("Week")
 
         if len(p) >= 4:
 
-            first = p[
-                "Units_Sold"
-            ].head(
-                max(
-                    1,
-                    len(p) // 4
-                )
+            first = p["Units_Sold"].head(
+                max(1, len(p) // 4)
             ).mean()
 
-
-            last = p[
-                "Units_Sold"
-            ].tail(
-                max(
-                    1,
-                    len(p) // 4
-                )
+            last = p["Units_Sold"].tail(
+                max(1, len(p) // 4)
             ).mean()
-
 
             growth = (
-
-                (
-                    (
-                        last -
-                        first
-                    )
-                    /
-                    first
-                )
-                *
-                100
-
+                ((last - first) / first) * 100
                 if first != 0
-
                 else np.nan
-
             )
-
 
             growth_results.append(
-                [
-                    product,
-                    growth
-                ]
+                [product, growth]
             )
-
 
     growth_df = pd.DataFrame(
         growth_results,
-        columns=[
-            "Product_Name",
-            "Growth_%"
-        ]
-    )
-
-
-    if not growth_df.empty:
-
-        growth_df = (
-            growth_df
-            .sort_values(
-                "Growth_%",
-                ascending=False
-            )
-        )
-
+        columns=["Product_Name", "Growth_%"]
+    ).sort_values("Growth_%", ascending=False)
 
     st.dataframe(
         growth_df,
@@ -4575,84 +1939,42 @@ elif page == "💡 Demand Opportunity Finder":
         hide_index=True
     )
 
-
     st.divider()
 
-
-    st.subheader(
-        "⚠️ Price Rising While Demand Falls"
-    )
-
+    st.subheader("⚠️ Price Rising While Demand Falls")
 
     product_year = (
         historical_df
-        .assign(
-            Year=historical_df[
-                "Date"
-            ].dt.year
-        )
-        .groupby(
-            [
-                "Product_Name",
-                "Year"
-            ]
-        )
+        .assign(Year=historical_df["Date"].dt.year)
+        .groupby(["Product_Name", "Year"])
         .agg(
-            Price=(
-                "Price",
-                "mean"
-            ),
-            Units=(
-                "Units_Sold",
-                "sum"
-            )
+            Price=("Price", "mean"),
+            Units=("Units_Sold", "sum")
         )
         .reset_index()
     )
 
-
     price_demand_alerts = []
 
-
-    for product in (
-        product_year[
-            "Product_Name"
-        ].unique()
-    ):
+    for product in product_year["Product_Name"].unique():
 
         p = product_year[
-            product_year[
-                "Product_Name"
-            ]
-            ==
-            product
-        ].sort_values(
-            "Year"
-        )
-
+            product_year["Product_Name"] == product
+        ].sort_values("Year")
 
         if len(p) >= 2:
 
             price_change = (
                 p.iloc[-1]["Price"]
-                -
-                p.iloc[0]["Price"]
+                - p.iloc[0]["Price"]
             )
-
 
             demand_change = (
                 p.iloc[-1]["Units"]
-                -
-                p.iloc[0]["Units"]
+                - p.iloc[0]["Units"]
             )
 
-
-            if (
-                price_change > 0
-                and
-                demand_change < 0
-            ):
-
+            if price_change > 0 and demand_change < 0:
                 price_demand_alerts.append(
                     [
                         product,
@@ -4660,7 +1982,6 @@ elif page == "💡 Demand Opportunity Finder":
                         demand_change
                     ]
                 )
-
 
     alerts_df = pd.DataFrame(
         price_demand_alerts,
@@ -4671,194 +1992,102 @@ elif page == "💡 Demand Opportunity Finder":
         ]
     )
 
-
-    if len(
-        alerts_df
-    ) > 0:
-
+    if len(alerts_df) > 0:
         st.dataframe(
             alerts_df,
             use_container_width=True,
             hide_index=True
         )
-
     else:
-
         st.success(
-            "No product currently shows both "
-            "rising price and falling demand."
+            "No product currently shows both rising price and falling demand."
         )
 
 
 # ============================================================
-# 18. LEADERBOARDS
+# 17. LEADERBOARDS
 # ============================================================
 
-elif page == "🏆 Leaderboards":
+elif page == "Leaderboards":
 
     st.header("🏆 Leaderboards")
 
-
-    st.subheader(
-        "📦 Top 10 Products"
-    )
-
+    st.subheader("Top 10 Products")
 
     top_products = (
         historical_df
-        .groupby(
-            "Product_Name"
-        )[
-            "Units_Sold"
-        ]
+        .groupby("Product_Name")["Units_Sold"]
         .sum()
-        .sort_values(
-            ascending=False
-        )
+        .sort_values(ascending=False)
         .head(10)
     )
 
-
-    st.bar_chart(
-        top_products
-    )
-
+    st.bar_chart(top_products)
 
     st.divider()
 
-
-    st.subheader(
-        "📍 Top Locations"
-    )
-
+    st.subheader("Top Locations")
 
     top_locations = (
         historical_df
-        .groupby(
-            "Store_Location"
-        )[
-            "Units_Sold"
-        ]
+        .groupby("Store_Location")["Units_Sold"]
         .sum()
-        .sort_values(
-            ascending=False
-        )
+        .sort_values(ascending=False)
     )
 
-
-    st.bar_chart(
-        top_locations
-    )
-
+    st.bar_chart(top_locations)
 
     st.divider()
 
-
-    st.subheader(
-        "🗂️ Top Categories"
-    )
-
+    st.subheader("Top Categories")
 
     top_categories = (
         historical_df
-        .groupby(
-            "Category"
-        )[
-            "Units_Sold"
-        ]
+        .groupby("Category")["Units_Sold"]
         .sum()
-        .sort_values(
-            ascending=False
-        )
+        .sort_values(ascending=False)
     )
 
-
-    st.bar_chart(
-        top_categories
-    )
-
+    st.bar_chart(top_categories)
 
     st.divider()
 
-
-    st.subheader(
-        "🛒 Top Sales Channels"
-    )
-
+    st.subheader("Top Sales Channels")
 
     top_channels = (
         historical_df
-        .groupby(
-            "Sales_Channel"
-        )[
-            "Units_Sold"
-        ]
+        .groupby("Sales_Channel")["Units_Sold"]
         .sum()
-        .sort_values(
-            ascending=False
-        )
+        .sort_values(ascending=False)
     )
 
-
-    st.bar_chart(
-        top_channels
-    )
-
+    st.bar_chart(top_channels)
 
     st.divider()
 
-
-    st.subheader(
-        "👥 Top Customer Segments"
-    )
-
+    st.subheader("Top Customer Segments")
 
     top_segments = (
         historical_df
-        .groupby(
-            "Customer_Segment"
-        )[
-            "Units_Sold"
-        ]
+        .groupby("Customer_Segment")["Units_Sold"]
         .sum()
-        .sort_values(
-            ascending=False
-        )
+        .sort_values(ascending=False)
     )
 
-
-    st.bar_chart(
-        top_segments
-    )
-
+    st.bar_chart(top_segments)
 
     st.divider()
 
-
-    st.subheader(
-        "📦 Top Product × Location Combinations"
-    )
-
+    st.subheader("Top Product × Location Combinations")
 
     top_combinations = (
         historical_df
-        .groupby(
-            [
-                "Product_Name",
-                "Store_Location"
-            ]
-        )[
-            "Units_Sold"
-        ]
+        .groupby(["Product_Name", "Store_Location"])["Units_Sold"]
         .sum()
         .reset_index()
-        .sort_values(
-            "Units_Sold",
-            ascending=False
-        )
+        .sort_values("Units_Sold", ascending=False)
         .head(10)
     )
-
 
     st.dataframe(
         top_combinations,
@@ -4866,34 +2095,18 @@ elif page == "🏆 Leaderboards":
         hide_index=True
     )
 
-
     st.divider()
 
-
-    st.subheader(
-        "📅 Top Quarter × Product"
-    )
-
+    st.subheader("Top Quarter × Product")
 
     top_quarter_products = (
         historical_df
-        .groupby(
-            [
-                "Quarter",
-                "Product_Name"
-            ]
-        )[
-            "Units_Sold"
-        ]
+        .groupby(["Quarter", "Product_Name"])["Units_Sold"]
         .sum()
         .reset_index()
-        .sort_values(
-            "Units_Sold",
-            ascending=False
-        )
+        .sort_values("Units_Sold", ascending=False)
         .head(10)
     )
-
 
     st.dataframe(
         top_quarter_products,
@@ -4903,75 +2116,45 @@ elif page == "🏆 Leaderboards":
 
 
 # ============================================================
-# 19. PRODUCT × LOCATION FINDER
+# 18. PRODUCT × LOCATION FINDER
 # ============================================================
 
-elif page == "📍 Product × Location Finder":
+elif page == "Product × Location Finder":
 
     st.header("📍 Product × Location Finder")
 
-
     selected_product = st.selectbox(
-        "📦 Choose Product",
+        "Choose Product",
         sorted(
-            historical_df[
-                "Product_Name"
-            ]
+            historical_df["Product_Name"]
             .dropna()
             .unique()
         )
     )
 
-
     product_location = (
         historical_df[
-            historical_df[
-                "Product_Name"
-            ]
-            ==
-            selected_product
+            historical_df["Product_Name"] == selected_product
         ]
-        .groupby(
-            "Store_Location"
-        )
+        .groupby("Store_Location")
         .agg(
-            Units_Sold=(
-                "Units_Sold",
-                "sum"
-            ),
-            Revenue=(
-                "Revenue",
-                "sum"
-            ),
-            Avg_Price=(
-                "Price",
-                "mean"
-            )
+            Units_Sold=("Units_Sold", "sum"),
+            Revenue=("Revenue", "sum"),
+            Avg_Price=("Price", "mean")
         )
         .reset_index()
-        .sort_values(
-            "Units_Sold",
-            ascending=False
-        )
+        .sort_values("Units_Sold", ascending=False)
     )
 
-
     product_location["Rank"] = (
-        product_location[
-            "Units_Sold"
-        ]
-        .rank(
-            method="dense",
-            ascending=False
-        )
+        product_location["Units_Sold"]
+        .rank(method="dense", ascending=False)
         .astype(int)
     )
 
-
     st.subheader(
-        f"📦 {selected_product} — Location Comparison"
+        f"{selected_product} — Location Comparison"
     )
-
 
     st.dataframe(
         product_location,
@@ -4979,44 +2162,33 @@ elif page == "📍 Product × Location Finder":
         hide_index=True
     )
 
-
     st.bar_chart(
-        product_location.set_index(
-            "Store_Location"
-        )[
-            "Units_Sold"
-        ]
+        product_location.set_index("Store_Location")["Units_Sold"]
+    )
+
+    best = product_location.iloc[0]
+
+    st.success(
+        f"{selected_product} performs best in "
+        f"{best['Store_Location']} with "
+        f"{best['Units_Sold']:,.0f} units sold."
     )
 
 
-    if not product_location.empty:
-
-        best = product_location.iloc[0]
-
-        st.success(
-            f"📈 {selected_product} performs highest "
-            f"in {best['Store_Location']} with "
-            f"{best['Units_Sold']:,.0f} units sold."
-        )
-
-
 # ============================================================
-# 20. ASK FORECASTIQ
+# 19. ASK FORECASTIQ
 # ============================================================
 
-elif page == "💬 Ask ForecastIQ":
+elif page == "Ask ForecastIQ":
 
     st.header("💬 Ask ForecastIQ")
 
-
     st.caption(
-        "Choose a business question to get an answer "
-        "from the historical data."
+        "Choose a business question to get an answer from the historical data."
     )
 
-
     question = st.selectbox(
-        "💬 Business Question",
+        "Business Question",
         [
             "Which product sells most in each location?",
             "Which location has the highest demand?",
@@ -5029,39 +2201,20 @@ elif page == "💬 Ask ForecastIQ":
         ]
     )
 
-
     st.divider()
 
-
-    if question == (
-        "Which product sells most in each location?"
-    ):
+    if question == "Which product sells most in each location?":
 
         result = (
             historical_df
-            .groupby(
-                [
-                    "Store_Location",
-                    "Product_Name"
-                ]
-            )[
-                "Units_Sold"
-            ]
+            .groupby(["Store_Location", "Product_Name"])["Units_Sold"]
             .sum()
             .reset_index()
         )
 
-
         result = result.loc[
-            result
-            .groupby(
-                "Store_Location"
-            )[
-                "Units_Sold"
-            ]
-            .idxmax()
+            result.groupby("Store_Location")["Units_Sold"].idxmax()
         ]
-
 
         st.dataframe(
             result,
@@ -5069,195 +2222,93 @@ elif page == "💬 Ask ForecastIQ":
             hide_index=True
         )
 
-
-    elif question == (
-        "Which location has the highest demand?"
-    ):
+    elif question == "Which location has the highest demand?":
 
         result = (
             historical_df
-            .groupby(
-                "Store_Location"
-            )[
-                "Units_Sold"
-            ]
+            .groupby("Store_Location")["Units_Sold"]
             .sum()
-            .sort_values(
-                ascending=False
-            )
+            .sort_values(ascending=False)
         )
 
-
         st.success(
-            f"📍 Highest-demand location: "
-            f"**{result.index[0]}** "
+            f"Highest-demand location: **{result.index[0]}** "
             f"with {result.iloc[0]:,.0f} units."
         )
 
+        st.bar_chart(result)
 
-        st.bar_chart(
-            result
-        )
-
-
-    elif question == (
-        "Which product sells the most overall?"
-    ):
+    elif question == "Which product sells the most overall?":
 
         result = (
             historical_df
-            .groupby(
-                "Product_Name"
-            )[
-                "Units_Sold"
-            ]
+            .groupby("Product_Name")["Units_Sold"]
             .sum()
-            .sort_values(
-                ascending=False
-            )
+            .sort_values(ascending=False)
         )
 
-
         st.success(
-            f"📦 Top product: "
-            f"**{result.index[0]}** "
+            f"Top product: **{result.index[0]}** "
             f"with {result.iloc[0]:,.0f} units."
         )
 
+        st.bar_chart(result)
 
-        st.bar_chart(
-            result
-        )
+    elif question == "Which product is growing fastest?":
 
-
-    elif question == (
-        "Which product is growing fastest?"
-    ):
-
+        # Recalculate here so this page works independently.
         product_weekly = (
             historical_df
             .assign(
-                Week=historical_df[
-                    "Date"
-                ]
-                .dt
-                .to_period("W")
-                .apply(
-                    lambda x:
-                    x.start_time
-                )
+                Week=historical_df["Date"]
+                .dt.to_period("W")
+                .apply(lambda x: x.start_time)
             )
-            .groupby(
-                [
-                    "Week",
-                    "Product_Name"
-                ]
-            )[
-                "Units_Sold"
-            ]
+            .groupby(["Week", "Product_Name"])["Units_Sold"]
             .sum()
             .reset_index()
         )
 
-
         growth_results = []
 
-
-        for product in (
-            product_weekly[
-                "Product_Name"
-            ].unique()
-        ):
+        for product in product_weekly["Product_Name"].unique():
 
             p = product_weekly[
-                product_weekly[
-                    "Product_Name"
-                ]
-                ==
-                product
-            ].sort_values(
-                "Week"
-            )
-
+                product_weekly["Product_Name"] == product
+            ].sort_values("Week")
 
             if len(p) >= 4:
 
-                first = p[
-                    "Units_Sold"
-                ].head(
-                    max(
-                        1,
-                        len(p) // 4
-                    )
+                first = p["Units_Sold"].head(
+                    max(1, len(p) // 4)
                 ).mean()
 
-
-                last = p[
-                    "Units_Sold"
-                ].tail(
-                    max(
-                        1,
-                        len(p) // 4
-                    )
+                last = p["Units_Sold"].tail(
+                    max(1, len(p) // 4)
                 ).mean()
-
 
                 growth = (
-                    (
-                        (
-                            last -
-                            first
-                        )
-                        /
-                        first
-                    )
-                    *
-                    100
+                    ((last - first) / first) * 100
                     if first != 0
                     else np.nan
                 )
 
-
-                growth_results.append(
-                    [
-                        product,
-                        growth
-                    ]
-                )
-
+                growth_results.append([product, growth])
 
         growth_df_ask = pd.DataFrame(
             growth_results,
-            columns=[
-                "Product_Name",
-                "Growth_%"
-            ]
-        )
+            columns=["Product_Name", "Growth_%"]
+        ).sort_values("Growth_%", ascending=False)
 
+        if len(growth_df_ask) > 0:
 
-        if not growth_df_ask.empty:
-
-            growth_df_ask = (
-                growth_df_ask
-                .sort_values(
-                    "Growth_%",
-                    ascending=False
-                )
-            )
-
-
-            top_growth = (
-                growth_df_ask.iloc[0]
-            )
-
+            top_growth = growth_df_ask.iloc[0]
 
             st.success(
-                f"📈 Fastest-growing product: "
-                f"**{top_growth['Product_Name']}** "
+                f"Fastest-growing product: **{top_growth['Product_Name']}** "
                 f"with estimated growth of "
                 f"{top_growth['Growth_%']:.2f}%."
             )
-
 
             st.dataframe(
                 growth_df_ask,
@@ -5265,90 +2316,53 @@ elif page == "💬 Ask ForecastIQ":
                 hide_index=True
             )
 
+    elif question == "Does discount increase sales?":
 
-    elif question == (
-        "Does discount increase sales?"
-    ):
-
-        discount_corr = (
-            historical_df[
-                [
-                    "Discount_Percentage",
-                    "Units_Sold"
-                ]
-            ]
-            .corr()
-            .iloc[0, 1]
-        )
-
+        discount_corr = historical_df[
+            ["Discount_Percentage", "Units_Sold"]
+        ].corr().iloc[0, 1]
 
         st.metric(
-            "🏷️ Discount vs Units Sold Correlation",
+            "Discount vs Units Sold Correlation",
             f"{discount_corr:.3f}"
         )
 
-
         if discount_corr > 0:
-
             st.info(
-                "The historical data shows a positive "
-                "association between discount and units sold."
+                "The historical data shows a positive association "
+                "between discount and units sold."
             )
-
         elif discount_corr < 0:
-
             st.info(
-                "The historical data shows a negative "
-                "association between discount and units sold."
+                "The historical data shows a negative association "
+                "between discount and units sold."
             )
-
         else:
-
             st.info(
-                "The historical data shows almost no "
-                "linear association."
+                "The historical data shows almost no linear association."
             )
-
 
         st.info(
-            "Correlation does not prove that discounts "
-            "cause higher sales."
+            "Correlation does not prove that discounts cause higher sales."
         )
 
-
-    elif question == (
-        "Which quarter performs best?"
-    ):
+    elif question == "Which quarter performs best?":
 
         result = (
             historical_df
-            .groupby(
-                "Quarter"
-            )[
-                "Units_Sold"
-            ]
+            .groupby("Quarter")["Units_Sold"]
             .sum()
-            .sort_values(
-                ascending=False
-            )
+            .sort_values(ascending=False)
         )
 
-
         st.success(
-            f"📅 Best quarter: "
-            f"**{result.index[0]}** "
+            f"Best quarter: **{result.index[0]}** "
             f"with {result.iloc[0]:,.0f} units."
         )
 
+        st.bar_chart(result)
 
-        st.bar_chart(
-            result
-        )
-
-
-    elif question == (
-        "What are the strongest demand drivers?"
-    ):
+    elif question == "What are the strongest demand drivers?":
 
         drivers = [
             "Price",
@@ -5359,53 +2373,30 @@ elif page == "💬 Ask ForecastIQ":
             "Economic_Indicator"
         ]
 
-
         corr = (
-            historical_df[
-                drivers +
-                ["Units_Sold"]
-            ]
-            .corr()[
-                "Units_Sold"
-            ]
-            .drop(
-                "Units_Sold"
-            )
+            historical_df[drivers + ["Units_Sold"]]
+            .corr()["Units_Sold"]
+            .drop("Units_Sold")
             .sort_values(
-                key=lambda x:
-                x.abs(),
+                key=lambda x: x.abs(),
                 ascending=False
             )
         )
 
-
         st.dataframe(
-            corr.to_frame(
-                "Correlation with Units Sold"
-            ),
+            corr.to_frame("Correlation with Units Sold"),
             use_container_width=True
         )
 
+        st.info("These are associations, not causal effects.")
 
-        st.info(
-            "These are associations, not causal effects."
-        )
-
-
-    elif question == (
-        "Which products may need more inventory?"
-    ):
+    elif question == "Which products may need more inventory?":
 
         inventory = (
             historical_df
-            .groupby(
-                "Product_Name"
-            )
+            .groupby("Product_Name")
             .agg(
-                Units_Sold=(
-                    "Units_Sold",
-                    "sum"
-                ),
+                Units_Sold=("Units_Sold", "sum"),
                 Avg_Stock_Availability=(
                     "Stock_Availability",
                     "mean"
@@ -5414,34 +2405,14 @@ elif page == "💬 Ask ForecastIQ":
             .reset_index()
         )
 
-
-        inventory[
-            "Stock_Ratio"
-        ] = _stock_to_ratio(
-            inventory[
-                "Avg_Stock_Availability"
-            ]
+        inventory_opportunity = inventory[
+            inventory["Avg_Stock_Availability"] < 0.80
+        ].sort_values(
+            "Units_Sold",
+            ascending=False
         )
 
-
-        inventory_opportunity = (
-            inventory[
-                inventory[
-                    "Stock_Ratio"
-                ]
-                <
-                0.80
-            ]
-            .sort_values(
-                "Units_Sold",
-                ascending=False
-            )
-        )
-
-
-        if len(
-            inventory_opportunity
-        ) > 0:
+        if len(inventory_opportunity) > 0:
 
             st.dataframe(
                 inventory_opportunity,
@@ -5452,141 +2423,99 @@ elif page == "💬 Ask ForecastIQ":
         else:
 
             st.success(
-                "No product meets the current "
-                "low-stock threshold."
+                "No product meets the current low-stock threshold."
             )
 
 
 # ============================================================
-# 21. DATA EXPLORER
+# 20. DATA EXPLORER
 # ============================================================
 
-elif page == "🗃️ Data Explorer":
+elif page == "Data Explorer":
 
     st.header("🗃️ Data Explorer")
-
 
     st.caption(
         "Filter historical sales data and download the result."
     )
 
-
     filtered_df = historical_df.copy()
 
-
     locations = st.multiselect(
-        "📍 Location",
+        "Location",
         sorted(
-            historical_df[
-                "Store_Location"
-            ]
+            historical_df["Store_Location"]
             .dropna()
             .unique()
         )
     )
-
 
     if locations:
-
         filtered_df = filtered_df[
-            filtered_df[
-                "Store_Location"
-            ].isin(locations)
+            filtered_df["Store_Location"].isin(locations)
         ]
-
 
     products = st.multiselect(
-        "📦 Product",
+        "Product",
         sorted(
-            historical_df[
-                "Product_Name"
-            ]
+            historical_df["Product_Name"]
             .dropna()
             .unique()
         )
     )
-
 
     if products:
-
         filtered_df = filtered_df[
-            filtered_df[
-                "Product_Name"
-            ].isin(products)
+            filtered_df["Product_Name"].isin(products)
         ]
-
 
     categories = st.multiselect(
-        "🗂️ Category",
+        "Category",
         sorted(
-            historical_df[
-                "Category"
-            ]
+            historical_df["Category"]
             .dropna()
             .unique()
         )
     )
-
 
     if categories:
-
         filtered_df = filtered_df[
-            filtered_df[
-                "Category"
-            ].isin(categories)
+            filtered_df["Category"].isin(categories)
         ]
-
 
     channels = st.multiselect(
-        "🛒 Sales Channel",
+        "Sales Channel",
         sorted(
-            historical_df[
-                "Sales_Channel"
-            ]
+            historical_df["Sales_Channel"]
             .dropna()
             .unique()
         )
     )
-
 
     if channels:
-
         filtered_df = filtered_df[
-            filtered_df[
-                "Sales_Channel"
-            ].isin(channels)
+            filtered_df["Sales_Channel"].isin(channels)
         ]
 
-
     segments = st.multiselect(
-        "👥 Customer Segment",
+        "Customer Segment",
         sorted(
-            historical_df[
-                "Customer_Segment"
-            ]
+            historical_df["Customer_Segment"]
             .dropna()
             .unique()
         )
     )
 
-
     if segments:
-
         filtered_df = filtered_df[
-            filtered_df[
-                "Customer_Segment"
-            ].isin(segments)
+            filtered_df["Customer_Segment"].isin(segments)
         ]
-
 
     st.divider()
 
-
     st.subheader(
-        f"📋 Filtered Records: "
-        f"{len(filtered_df):,}"
+        f"Filtered Records: {len(filtered_df):,}"
     )
-
 
     st.dataframe(
         filtered_df,
@@ -5594,28 +2523,19 @@ elif page == "🗃️ Data Explorer":
         height=500
     )
 
-
     st.divider()
 
-
-    st.subheader(
-        "⬇️ Downloads"
-    )
-
+    st.subheader("Downloads")
 
     c1, c2 = st.columns(2)
 
-
     with c1:
-
         download_csv(
             filtered_df,
             "ForecastIQ_Filtered_Data.csv"
         )
 
-
     with c2:
-
         download_excel(
             filtered_df,
             "ForecastIQ_Filtered_Data.xlsx"
@@ -5623,220 +2543,101 @@ elif page == "🗃️ Data Explorer":
 
 
 # ============================================================
-# 22. NEW PREDICTION
+# 21. NEW PREDICTION
 # ============================================================
 
-elif page == "🔮 New Prediction":
+elif page == "New Prediction":
 
     st.header("🔮 New Prediction")
-
 
     st.caption(
         "Upload a new dataset for validation and inspection "
         "before using the existing forecasting pipeline."
     )
 
-
     uploaded_file = st.file_uploader(
         "📤 Upload New Dataset",
         type=["csv"]
     )
 
-
     if uploaded_file is not None:
 
-        new_data = pd.read_csv(
-            uploaded_file
-        )
+        new_data = pd.read_csv(uploaded_file)
 
+        st.success("Dataset uploaded successfully!")
 
-        st.success(
-            "✅ Dataset uploaded successfully!"
-        )
-
-
-        st.subheader(
-            "📊 Dataset Overview"
-        )
-
+        st.subheader("📊 Dataset Overview")
 
         c1, c2, c3 = st.columns(3)
 
-
         with c1:
-
-            st.metric(
-                "📋 Rows",
-                f"{new_data.shape[0]:,}"
-            )
-
+            st.metric("Rows", f"{new_data.shape[0]:,}")
 
         with c2:
-
-            st.metric(
-                "📊 Columns",
-                new_data.shape[1]
-            )
-
+            st.metric("Columns", new_data.shape[1])
 
         with c3:
-
             st.metric(
-                "⚠️ Missing Values",
-                int(
-                    new_data
-                    .isnull()
-                    .sum()
-                    .sum()
-                )
+                "Missing Values",
+                int(new_data.isnull().sum().sum())
             )
-
 
         st.dataframe(
             new_data.head(10),
             use_container_width=True
         )
 
-
-        st.subheader(
-            "🔍 Data Quality Check"
-        )
-
+        st.subheader("🔍 Data Quality Check")
 
         q1, q2 = st.columns(2)
 
-
         with q1:
-
             st.write(
                 "Duplicate Rows:",
-                int(
-                    new_data
-                    .duplicated()
-                    .sum()
-                )
+                int(new_data.duplicated().sum())
             )
-
 
         with q2:
-
             st.write(
                 "Missing Values:",
-                int(
-                    new_data
-                    .isnull()
-                    .sum()
-                    .sum()
-                )
+                int(new_data.isnull().sum().sum())
             )
 
-
-        st.subheader(
-            "📋 Column Information"
-        )
-
+        st.subheader("Column Information")
 
         column_info = pd.DataFrame({
-
-            "Column":
-                new_data.columns,
-
-            "Data Type":
-                new_data
-                .dtypes
-                .astype(str)
-                .values,
-
-            "Missing Values":
-                new_data
-                .isnull()
-                .sum()
-                .values,
-
-            "Unique Values":
-                [
-                    new_data[
-                        col
-                    ].nunique()
-                    for col in new_data.columns
-                ]
-
+            "Column": new_data.columns,
+            "Data Type": new_data.dtypes.astype(str).values,
+            "Missing Values": new_data.isnull().sum().values,
+            "Unique Values": [
+                new_data[col].nunique()
+                for col in new_data.columns
+            ]
         })
-
 
         st.dataframe(
             column_info,
             use_container_width=True
         )
 
-
-        st.subheader(
-            "⚙️ Preprocessing Status"
-        )
-
+        st.subheader("⚙️ Preprocessing Status")
 
         st.info(
             "Dataset validation completed. "
             "The uploaded data has been inspected. "
-            "The production forecast shown in "
-            "Forecast Intelligence uses the already "
-            "completed Trial 84 XGBoost forecasting pipeline."
+            "The production forecast shown in Forecast Intelligence "
+            "uses the already completed Trial 84 XGBoost forecasting pipeline."
         )
 
 
 # ============================================================
-# FOOTER
+# END OF APPLICATION
 # ============================================================
 
 st.markdown("---")
 
-
-historical_min_text = (
-    historical_df["Date"]
-    .min()
-    .strftime("%d-%b-%Y")
-)
-
-
-historical_max_text = (
-    historical_df["Date"]
-    .max()
-    .strftime("%d-%b-%Y")
-)
-
-
-forecast_valid_dates = (
-    forecast_df[
-        "Date"
-    ].dropna()
-)
-
-
-if not forecast_valid_dates.empty:
-
-    forecast_min_text = (
-        forecast_valid_dates
-        .min()
-        .strftime("%d-%b-%Y")
-    )
-
-    forecast_max_text = (
-        forecast_valid_dates
-        .max()
-        .strftime("%d-%b-%Y")
-    )
-
-else:
-
-    forecast_min_text = "N/A"
-    forecast_max_text = "N/A"
-
-
 st.caption(
-    "📈 ForecastIQ • Daily Sales Forecasting using "
-    "Trial 84 Log-XGBoost | "
-    f"Historical: {historical_min_text} to "
-    f"{historical_max_text} | "
-    f"Forecast: {forecast_min_text} to "
-    f"{forecast_max_text}"
+    "ForecastIQ • Daily Sales Forecasting using Trial 84 Log-XGBoost | "
+    "Historical: 06-Jan-2023 to 10-Sep-2026 | "
+    "Forecast: 11-Sep-2026 to 31-Dec-2027"
 )
