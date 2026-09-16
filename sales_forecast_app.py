@@ -452,11 +452,18 @@ def download_csv(data, filename):
     ).encode("utf-8")
 
     st.download_button(
-        label="⬇️ Download CSV",
-        data=csv_data,
-        file_name=filename,
-        mime="text/csv"
-    )
+    label="Download Forecast",
+    data=region_data[
+        [
+            "Forecast_Date",
+            "Product_ID",
+            "Product_Name",
+            "Predicted_Units_Sold"
+        ]
+    ].to_csv(index=False),
+    file_name="region_forecast.csv",
+    mime="text/csv"
+)
 
 
 def download_excel(data, filename):
