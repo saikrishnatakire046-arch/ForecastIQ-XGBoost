@@ -2300,4 +2300,4 @@ elif page == "Model Intelligence":
     st.info(
         "The final production model was trained using "
         "Optuna Trial 84 with log1p transformation of "
-
+    )
