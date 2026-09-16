@@ -26,9 +26,9 @@ BASE_DIR = Path(__file__).parent
 # IMPORTANT:
 # All CSV files must be in the same GitHub folder as app.py
 DATA_PATH = BASE_DIR / "sales_data.csv"
-FORECAST_PATH = BASE_DIR / "future_sales_forecast_2026_2027.csv"
-PRODUCT_FORECAST_PATH = BASE_DIR / "product_based_forecast_2026_2027.csv"
-REGION_FORECAST_PATH = BASE_DIR / "region_based_forecast_2026_2027.csv"
+FORECAST_PATH = BASE_DIR / "new_overall_forecast"
+PRODUCT_FORECAST_PATH = BASE_DIR / "new_product_forecast"
+REGION_FORECAST_PATH = BASE_DIR / "new_region_forecast"
 
 
 # ============================================================
@@ -212,7 +212,7 @@ try:
 except Exception as e:
 
     st.error(
-        "Unable to load future_sales_forecast_2026_2027.csv. "
+        "Unable to load new_overall_forecast. "
         f"Error: {e}"
     )
 
@@ -233,7 +233,7 @@ except Exception as e:
 
     st.warning(
         "Unable to load "
-        "product_based_forecast_2026_2027.csv. "
+        "new_product_forecast.csv "
         f"Error: {e}"
     )
 
@@ -252,7 +252,7 @@ except Exception as e:
 
     st.warning(
         "Unable to load "
-        "region_based_forecast_2026_2027.csv. "
+        "new_region_forecast.csv "
         f"Error: {e}"
     )
 
