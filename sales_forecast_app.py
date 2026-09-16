@@ -1093,6 +1093,20 @@ if page == "📦 Product-Based Forecast":
                 if product_total > 0:
                     store_share = store_total / product_total
 
+                    # A store with no recorded historical sales should
+                    # not make the forecast collapse to zero. Fall back
+                    # to an equal share across the available stores.
+                    if store_share <= 0:
+                        available_stores = (
+                            historical_df["Store_Location"]
+                            .dropna()
+                            .astype(str)
+                            .nunique()
+                        )
+
+                        if available_stores > 0:
+                            store_share = 1.0 / available_stores
+
             # Use the selected product + store historical records for
             # the existing business-input scenario calculation.
             scenario_history = historical_df.copy()
@@ -1132,11 +1146,31 @@ if page == "📦 Product-Based Forecast":
                 )
             )
 
-            result["Predicted_Units_Sold"] = (
+            # Allocate the product-level forecast to the selected store.
+            # Keep a minimum of 1 unit whenever the underlying forecast is
+            # positive so small store allocations do not become an entire
+            # column of zeros after integer rounding.
+            allocated_forecast = (
                 result["Predicted_Units_Sold"]
                 * store_share
                 * multiplier
-            ).clip(lower=0).round().astype(int)
+            ).clip(lower=0)
+
+            result["Predicted_Units_Sold"] = (
+                allocated_forecast
+                .round()
+                .astype(int)
+            )
+
+            positive_mask = (
+                result["Predicted_Units_Sold"].eq(0)
+                & allocated_forecast.gt(0)
+            )
+
+            result.loc[
+                positive_mask,
+                "Predicted_Units_Sold"
+            ] = 1
 
             # EXACT requested output columns only.
             result = result[
