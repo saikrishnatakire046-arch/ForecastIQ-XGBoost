@@ -1052,7 +1052,6 @@ if page == "📦 Product-Based Forecast":
 
     required = [
         "Date",
-        "Product_ID",
         "Product_Name",
         "Predicted_Units_Sold"
     ]
