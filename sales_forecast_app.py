@@ -25,11 +25,16 @@ BASE_DIR = Path(__file__).parent
 
 # IMPORTANT:
 # Sales data is loaded from the specified Windows path
+# ============================================================
+# FILE PATHS
+# ============================================================
+
+BASE_DIR = Path(__file__).parent
+
 DATA_PATH = Path(
     r"C:\Users\lenovo\ForecastIQ\sales_data.csv"
 )
 
-# Forecast files are loaded from the specified Windows paths
 FORECAST_PATH = Path(
     r"C:\Users\lenovo\Downloads\new_overall_forecast.csv"
 )
