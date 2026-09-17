@@ -1215,8 +1215,6 @@ elif page == "📍 Region-Based Forecast":
 
                     # ------------------------------------------------
                     # OVERALL DAILY FORECAST
-                    # One row per date
-                    # All products are added for that date
                     # ------------------------------------------------
 
                     st.subheader(
@@ -1283,8 +1281,6 @@ elif page == "📍 Region-Based Forecast":
 
                     # ------------------------------------------------
                     # PRODUCT-WISE FORECAST
-                    # One row per date
-                    # All products' units are added for that date
                     # ------------------------------------------------
 
                     st.subheader(
@@ -1293,24 +1289,22 @@ elif page == "📍 Region-Based Forecast":
 
                     product_wise_forecast = (
                         result.groupby(
-                            "Forecast_Date",
+                            [
+                                "Forecast_Date",
+                                "Product_ID",
+                                "Product_Name"
+                            ],
                             as_index=False
                         )["Predicted_Units_Sold"]
                         .sum()
-                        .rename(
-                            columns={
-                                "Predicted_Units_Sold":
-                                "Total_Predicted_Units"
-                            }
-                        )
                     )
 
                     product_wise_forecast[
-                        "Total_Predicted_Units"
+                        "Predicted_Units_Sold"
                     ] = (
                         pd.to_numeric(
                             product_wise_forecast[
-                                "Total_Predicted_Units"
+                                "Predicted_Units_Sold"
                             ],
                             errors="coerce"
                         )
@@ -1319,8 +1313,43 @@ elif page == "📍 Region-Based Forecast":
                         .astype(int)
                     )
 
+                    product_wise_forecast = product_wise_forecast[
+                        [
+                            "Forecast_Date",
+                            "Product_ID",
+                            "Product_Name",
+                            "Predicted_Units_Sold"
+                        ]
+                    ]
+
+                    product_wise_forecast = (
+                        product_wise_forecast
+                        .sort_values(
+                            [
+                                "Forecast_Date",
+                                "Product_ID",
+                                "Product_Name"
+                            ]
+                        )
+                        .reset_index(drop=True)
+                    )
+
+                    # Show the date only once for consecutive rows
+                    # having the same forecast date.
+                    product_wise_display = product_wise_forecast.copy()
+
+                    repeated_dates = (
+                        product_wise_display["Forecast_Date"]
+                        == product_wise_display["Forecast_Date"].shift()
+                    )
+
+                    product_wise_display.loc[
+                        repeated_dates,
+                        "Forecast_Date"
+                    ] = ""
+
                     st.dataframe(
-                        product_wise_forecast,
+                        product_wise_display,
                         use_container_width=True,
                         hide_index=True
                     )
