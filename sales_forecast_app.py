@@ -1033,9 +1033,9 @@ elif page == "📦 Product-Based Forecast":
                 errors="coerce"
             ).fillna(0)
 
-           result["Predicted_Units_Sold"] = (
-    result["Predicted_Units_Sold"] * multiplier
-)
+                     result["Predicted_Units_Sold"] = (
+                result["Predicted_Units_Sold"] * multiplier
+            )
 
             result["Predicted_Units_Sold"] = (
                 result["Predicted_Units_Sold"]
