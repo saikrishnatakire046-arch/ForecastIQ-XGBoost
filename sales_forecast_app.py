@@ -1073,260 +1073,160 @@ elif page == "📦 Product-Based Forecast":
 # REGION-BASED FORECAST
 # ============================================================
 
+# ============================================================
+# REGION-BASED FORECAST
+# ============================================================
+
 elif page == "📍 Region-Based Forecast":
 
-    st.title("📍 Region-Based Forecast")
+    st.title("📍 Region-Based Sales Forecast")
+    st.write(
+        "Enter a location to view the sales forecast for that location."
+    )
+
+    st.info(
+        "Note: The current new_region_forecast.csv file does not contain "
+        "a Region or Location column. The location entered below will be "
+        "shown as the selected forecast location, but the data cannot yet "
+        "be filtered by location."
+    )
+
+    # --------------------------------------------------------
+    # LOCATION INPUT
+    # --------------------------------------------------------
+
+    location = st.text_input(
+        "Enter your Location / Region",
+        placeholder="Example: Hyderabad, Telangana",
+        key="forecast_location"
+    )
+
+    # --------------------------------------------------------
+    # LOAD REGION FORECAST
+    # --------------------------------------------------------
+
+    region_forecast_df = load_region_forecast()
 
     if region_forecast_df.empty:
-
         st.error(
-            "new_region_forecast.csv could not be loaded."
-        )
-
-        st.stop()
-
-    region_data = region_forecast_df.copy()
-
-    region_column = None
-
-    for column in [
-        "Region",
-        "Location",
-        "region",
-        "location",
-        "Area",
-        "area",
-        "Store_Location",
-        "Store Location"
-    ]:
-
-        if column in region_data.columns:
-
-            region_column = column
-            break
-
-    if region_column is None:
-
-        st.error(
-            "No Region or Location column was found in "
-            "new_region_forecast.csv."
-        )
-
-        st.write(
-            "Available columns:",
-            list(region_data.columns)
-        )
-
-        st.stop()
-
-    region_date_column = None
-
-    for column in [
-        "Forecast_Date",
-        "Date",
-        "date"
-    ]:
-
-        if column in region_data.columns:
-
-            region_date_column = column
-            break
-
-    if region_date_column is None:
-
-        st.error(
-            "No forecast date column was found."
-        )
-
-        st.stop()
-
-    region_sales_column = None
-
-    for column in [
-        "Predicted_Units_Sold",
-        "Predicted_Sales",
-        "Forecast_Sales",
-        "Sales",
-        "Predicted_Revenue",
-        "Forecast",
-        "Prediction"
-    ]:
-
-        if column in region_data.columns:
-
-            region_sales_column = column
-            break
-
-    if region_sales_column is None:
-
-        st.error(
-            "No forecast value column was found."
-        )
-
-        st.write(
-            "Available columns:",
-            list(region_data.columns)
-        )
-
-        st.stop()
-
-    region_data[region_date_column] = pd.to_datetime(
-        region_data[region_date_column],
-        errors="coerce"
-    )
-
-    region_data[region_sales_column] = pd.to_numeric(
-        region_data[region_sales_column],
-        errors="coerce"
-    )
-
-    region_data = region_data.dropna(
-        subset=[
-            region_column,
-            region_date_column,
-            region_sales_column
-        ]
-    )
-
-    st.subheader("🔎 Search Forecast by Location")
-
-    user_location = st.text_input(
-        "Enter your region or location",
-        placeholder="Example: Hyderabad, Delhi, Mumbai"
-    ).strip()
-
-    if user_location == "":
-
-        st.info(
-            "Enter a location above to view its forecast."
+            "Unable to load new_region_forecast.csv."
         )
 
     else:
 
-        location_data = region_data[
-            region_data[region_column]
-            .astype(str)
-            .str.contains(
-                user_location,
-                case=False,
-                na=False,
-                regex=False
-            )
-        ].copy()
+        # ----------------------------------------------------
+        # SHOW LOCATION ENTERED BY USER
+        # ----------------------------------------------------
 
-        if location_data.empty:
+        if location.strip():
 
-            st.warning(
-                f"No forecast found for location: "
-                f"{user_location}"
+            st.success(
+                f"Forecast location selected: {location.strip()}"
             )
 
-            available_locations = sorted(
-                region_data[region_column]
-                .astype(str)
-                .unique()
-                .tolist()
-            )
-
-            st.write("Available locations:")
-
-            st.write(
-                ", ".join(available_locations)
+            st.subheader(
+                f"Sales Forecast for {location.strip()}"
             )
 
         else:
 
-            location_data = location_data.sort_values(
-                by=region_date_column
+            st.warning(
+                "Please enter a location to continue."
             )
 
-            st.success(
-                f"Forecast found for: {user_location}"
+        # ----------------------------------------------------
+        # FORECAST DATE FILTER
+        # ----------------------------------------------------
+
+        if "Forecast_Date" in region_forecast_df.columns:
+
+            region_forecast_df["Forecast_Date"] = pd.to_datetime(
+                region_forecast_df["Forecast_Date"],
+                errors="coerce"
             )
 
-            total_forecast = location_data[
-                region_sales_column
-            ].sum()
+            valid_dates = region_forecast_df["Forecast_Date"].dropna()
 
-            average_forecast = location_data[
-                region_sales_column
-            ].mean()
+            if not valid_dates.empty:
 
-            highest_forecast = location_data[
-                region_sales_column
-            ].max()
+                min_date = valid_dates.min().date()
+                max_date = valid_dates.max().date()
 
-            c1, c2, c3 = st.columns(3)
+                selected_date = st.date_input(
+                    "Select Forecast Date",
+                    value=min_date,
+                    min_value=min_date,
+                    max_value=max_date,
+                    key="region_forecast_date"
+                )
 
-            c1.metric(
-                "Total Forecast",
-                f"{total_forecast:,.0f}"
-            )
+                filtered_region_df = region_forecast_df[
+                    region_forecast_df["Forecast_Date"].dt.date
+                    == selected_date
+                ].copy()
 
-            c2.metric(
-                "Average Forecast",
-                f"{average_forecast:,.0f}"
-            )
+            else:
 
-            c3.metric(
-                "Highest Forecast",
-                f"{highest_forecast:,.0f}"
-            )
+                filtered_region_df = region_forecast_df.copy()
 
-            st.subheader("📊 Location Forecast")
+        else:
 
-            display_data = location_data[
-                [
-                    region_date_column,
-                    region_column,
-                    region_sales_column
-                ]
-            ].copy()
+            filtered_region_df = region_forecast_df.copy()
 
-            display_data = display_data.rename(
-                columns={
-                    region_date_column: "Forecast Date",
-                    region_column: "Location",
-                    region_sales_column: "Predicted Sales"
-                }
-            )
+        # ----------------------------------------------------
+        # SHOW FORECAST
+        # ----------------------------------------------------
+
+        if not filtered_region_df.empty:
 
             st.dataframe(
-                display_data,
+                filtered_region_df,
                 use_container_width=True,
                 hide_index=True
             )
 
-            st.subheader("📈 Location Forecast Trend")
+            # ------------------------------------------------
+            # TOTAL FORECAST
+            # ------------------------------------------------
 
-            chart_data = location_data[
-                [
-                    region_date_column,
-                    region_sales_column
-                ]
-            ].copy()
+            if "Predicted_Units_Sold" in filtered_region_df.columns:
 
-            chart_data = chart_data.set_index(
-                region_date_column
-            )
+                total_forecast = pd.to_numeric(
+                    filtered_region_df["Predicted_Units_Sold"],
+                    errors="coerce"
+                ).fillna(0).sum()
 
-            chart_data.columns = [
-                "Predicted Sales"
-            ]
+                st.metric(
+                    "Total Predicted Units Sold",
+                    f"{total_forecast:,.0f}"
+                )
 
-            st.line_chart(
-                chart_data,
-                use_container_width=True
-            )
+                # ------------------------------------------------
+                # PRODUCT-WISE FORECAST
+                # ------------------------------------------------
 
-            download_csv(
-                display_data,
-                "location_forecast.csv"
-            )
+                if "Product_Name" in filtered_region_df.columns:
 
-            download_excel(
-                display_data,
-                "location_forecast.xlsx"
+                    product_forecast = (
+                        filtered_region_df
+                        .groupby("Product_Name")[
+                            "Predicted_Units_Sold"
+                        ]
+                        .sum()
+                        .sort_values(ascending=False)
+                        .reset_index()
+                    )
+
+                    st.subheader("Product-Wise Forecast")
+
+                    st.bar_chart(
+                        product_forecast.set_index("Product_Name")
+                    )
+
+        else:
+
+            st.warning(
+                "No forecast data is available for the selected date."
             )
 
 
