@@ -1099,10 +1099,43 @@ elif page == "📍 Region-Based Forecast":
 
     st.subheader("📍 Region / Location")
 
+    # Detect an available location column without assuming one name
+    possible_location_columns = [
+        "Region",
+        "Location",
+        "Store_Location",
+        "Store Location",
+        "Store",
+        "Area",
+        "City"
+    ]
+
+    location_column = next(
+        (
+            column
+            for column in possible_location_columns
+            if column in region_forecast_df.columns
+        ),
+        None
+    )
+
+    if location_column is None:
+
+        st.error(
+            "No location column was found in the region forecast data."
+        )
+
+        st.write(
+            "Available columns:",
+            region_forecast_df.columns.tolist()
+        )
+
+        st.stop()
+
     location = st.selectbox(
         "Select Region / Location",
         sorted(
-            region_forecast_df["Store_Location"]
+            region_forecast_df[location_column]
             .dropna()
             .astype(str)
             .unique()
@@ -1157,16 +1190,16 @@ elif page == "📍 Region-Based Forecast":
                 int(forecast_horizon)
             )
 
-            # Filter selected store location
+            # Filter the selected location
             result = result[
-                result["Store_Location"].astype(str).str.strip()
+                result[location_column].astype(str).str.strip()
                 == location.strip()
             ]
 
-            # Keep product-wise data before calculating totals
+            # Keep product-wise data before calculating daily totals
             product_wise_result = result.copy()
 
-            # Calculate overall predicted units per date
+            # Calculate total predicted units for each date
             result = (
                 result.groupby(
                     "Forecast_Date",
@@ -1189,7 +1222,8 @@ elif page == "📍 Region-Based Forecast":
                         "Date",
                         "Region",
                         "Location",
-                        "Store_Location"
+                        "Store_Location",
+                        "Store Location"
                     ],
                     errors="ignore"
                 )
@@ -1238,7 +1272,8 @@ elif page == "📍 Region-Based Forecast":
                             "Date",
                             "Region",
                             "Location",
-                            "Store_Location"
+                            "Store_Location",
+                            "Store Location"
                         ],
                         errors="ignore"
                     )
@@ -1253,7 +1288,7 @@ elif page == "📍 Region-Based Forecast":
 
                     st.info(
                         "Product-wise forecast is unavailable because "
-                        "the forecast CSV does not contain a product column."
+                        "the forecast data does not contain a product column."
                     )
 
                 if "Predicted_Units_Sold" in region_display_df.columns:
@@ -1279,7 +1314,6 @@ elif page == "📍 Region-Based Forecast":
                     region_display_df,
                     "region_forecast.xlsx"
                 )
-# ============================================================
 # LOCATION INTELLIGENCE
 # ============================================================
 
