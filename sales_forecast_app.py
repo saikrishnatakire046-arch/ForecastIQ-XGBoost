@@ -451,17 +451,19 @@ def prepare_forecast(data, start_date, horizon):
         + pd.Timedelta(days=int(horizon) - 1)
     )
 
-    result = temp[
-        (temp["Forecast_Date"] >= start_date)
-        & (temp["Forecast_Date"] <= end_date)
-    ].copy()
+   result = temp[
+    (temp["Forecast_Date"] >= start_date)
+    & (temp["Forecast_Date"] <= end_date)
+].copy()
 
-    return result.sort_values(
-        "Forecast_Date"
-    ).reset_index(
-        drop=True
-    )
+# Generate sequential dates from tomorrow
+result["Forecast_Date"] = pd.date_range(
+    start=start_date,
+    periods=len(result),
+    freq="D"
+)
 
+return result
 
 def estimate_price_elasticity(data, product=None):
 
