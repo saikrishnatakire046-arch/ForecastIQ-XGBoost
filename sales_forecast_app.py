@@ -1191,9 +1191,7 @@ elif page == "📍 Region-Based Forecast":
             else:
 
                 # ------------------------------------------------
-                # IMPORTANT:
-                # FILTER BY LOCATION ONLY IF THE FORECAST FILE
-                # CONTAINS LOCATION INFORMATION
+                # FILTER BY LOCATION ONLY IF AVAILABLE
                 # ------------------------------------------------
 
                 if "Store_Location" in result.columns:
@@ -1203,8 +1201,6 @@ elif page == "📍 Region-Based Forecast":
                         == selected_location
                     ].copy()
 
-               
-
                 if result.empty:
 
                     st.warning(
@@ -1213,22 +1209,14 @@ elif page == "📍 Region-Based Forecast":
 
                 else:
 
-                    # ------------------------------------------------
-                    # HIDE LOCATION AND DATE FROM DISPLAY
-                    # ------------------------------------------------
-                    region_display_df = (
-                        result.groupby(
-                            ["Forecast_Date", "Product_ID", "Product_Name"],
-                            as_index=False
-                        )["Predicted_Units_Sold"]
-                        .sum()
-                    )
                     st.success(
                         f"Region forecast generated for {selected_location}."
                     )
 
                     # ------------------------------------------------
                     # OVERALL DAILY FORECAST
+                    # One row per date.
+                    # All products are added for that date.
                     # ------------------------------------------------
 
                     st.subheader(
@@ -1236,8 +1224,7 @@ elif page == "📍 Region-Based Forecast":
                     )
 
                     overall_daily_forecast = (
-                        result
-                        .groupby(
+                        result.groupby(
                             "Forecast_Date",
                             as_index=False
                         )["Predicted_Units_Sold"]
@@ -1253,9 +1240,13 @@ elif page == "📍 Region-Based Forecast":
                     overall_daily_forecast[
                         "Total_Predicted_Units"
                     ] = (
-                        overall_daily_forecast[
-                            "Total_Predicted_Units"
-                        ]
+                        pd.to_numeric(
+                            overall_daily_forecast[
+                                "Total_Predicted_Units"
+                            ],
+                            errors="coerce"
+                        )
+                        .fillna(0)
                         .round()
                         .astype(int)
                     )
@@ -1292,20 +1283,24 @@ elif page == "📍 Region-Based Forecast":
 
                     # ------------------------------------------------
                     # PRODUCT-WISE FORECAST
+                    # One row per date and product.
                     # ------------------------------------------------
 
                     st.subheader(
                         f"📦 Product-wise Forecast — {selected_location}"
                     )
 
-                    product_wise_forecast = region_display_df[
-                        [
-                            "Forecast_Date",
-                            "Product_ID",
-                            "Product_Name",
-                            "Predicted_Units_Sold"
-                        ]
-                    ].copy()
+                    product_wise_forecast = (
+                        result.groupby(
+                            [
+                                "Forecast_Date",
+                                "Product_ID",
+                                "Product_Name"
+                            ],
+                            as_index=False
+                        )["Predicted_Units_Sold"]
+                        .sum()
+                    )
 
                     product_wise_forecast[
                         "Predicted_Units_Sold"
