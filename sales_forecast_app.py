@@ -1099,7 +1099,7 @@ elif page == "📍 Region-Based Forecast":
 
     st.subheader("📍 Region / Location")
 
-   location = st.selectbox(
+     location = st.selectbox(
     "Select Region / Location",
     sorted(
         region_forecast_df["Region"]
