@@ -1112,80 +1112,85 @@ elif page == "📍 Region-Based Forecast":
         key="region_forecast_horizon"
     )
 
-    if region_forecast_df.empty:
+    generate_region_forecast = st.button(
+        "🚀 Generate Region Forecast",
+        type="primary",
+        use_container_width=True
+    )
 
-        st.error(
-            "Unable to load new_region_forecast.csv."
-        )
+    if generate_region_forecast:
 
-    else:
+        if region_forecast_df.empty:
 
-        start_date = (
-            pd.Timestamp(current_date)
-            + pd.Timedelta(days=1)
-        )
-
-        result = prepare_forecast(
-            region_forecast_df,
-            start_date,
-            int(forecast_horizon)
-        )
-
-        if result.empty:
-
-            st.warning(
-                "No forecast is available for the selected "
-                "date and forecast horizon."
+            st.error(
+                "Unable to load new_region_forecast.csv."
             )
 
         else:
 
-            # Remove Date and any location columns only.
-            # Forecast_Date is intentionally retained.
-
-            region_display_df = result.drop(
-                columns=[
-                    "Date",
-                    "Region",
-                    "Location",
-                    "Store_Location"
-                ],
-                errors="ignore"
+            start_date = (
+                pd.Timestamp(current_date)
+                + pd.Timedelta(days=1)
             )
 
-            st.success(
-                "Region forecast generated successfully."
+            result = prepare_forecast(
+                region_forecast_df,
+                start_date,
+                int(forecast_horizon)
             )
 
-            st.dataframe(
-                region_display_df,
-                use_container_width=True,
-                hide_index=True
-            )
+            if result.empty:
 
-            if "Predicted_Units_Sold" in region_display_df.columns:
-
-                total_forecast = pd.to_numeric(
-                    region_display_df[
-                        "Predicted_Units_Sold"
-                    ],
-                    errors="coerce"
-                ).fillna(0).sum()
-
-                st.metric(
-                    "Total Predicted Units Sold",
-                    f"{total_forecast:,.0f}"
+                st.warning(
+                    "No forecast is available for the selected "
+                    "date and forecast horizon."
                 )
 
-            download_csv(
-                region_display_df,
-                "region_forecast.csv"
-            )
+            else:
 
-            download_excel(
-                region_display_df,
-                "region_forecast.xlsx"
-            )
+                region_display_df = result.drop(
+                    columns=[
+                        "Date",
+                        "Region",
+                        "Location",
+                        "Store_Location"
+                    ],
+                    errors="ignore"
+                )
+
+                st.success(
+                    "Region forecast generated successfully."
+                )
+
+                st.dataframe(
+                    region_display_df,
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                if "Predicted_Units_Sold" in region_display_df.columns:
+
+                    total_forecast = pd.to_numeric(
+                        region_display_df[
+                            "Predicted_Units_Sold"
+                        ],
+                        errors="coerce"
+                    ).fillna(0).sum()
+
+                    st.metric(
+                        "Total Predicted Units Sold",
+                        f"{total_forecast:,.0f}"
+                    )
+
+                download_csv(
+                    region_display_df,
+                    "region_forecast.csv"
+                )
+
+                download_excel(
+                    region_display_df,
+                    "region_forecast.xlsx"
+                )
 # ============================================================
 # LOCATION INTELLIGENCE
 # ============================================================
