@@ -826,6 +826,10 @@ if page == "📊 Executive Dashboard":
 # PRODUCT-BASED FORECAST
 # ============================================================
 
+# ============================================================
+# PRODUCT-BASED FORECAST
+# ============================================================
+
 elif page == "📦 Product-Based Forecast":
 
     st.title("📦 Product-Based Forecast")
@@ -1033,7 +1037,7 @@ elif page == "📦 Product-Based Forecast":
                 errors="coerce"
             ).fillna(0)
 
-                     result["Predicted_Units_Sold"] = (
+            result["Predicted_Units_Sold"] = (
                 result["Predicted_Units_Sold"] * multiplier
             )
 
@@ -1048,28 +1052,26 @@ elif page == "📦 Product-Based Forecast":
                 "Product forecast generated successfully."
             )
 
-           product_display_df = result.drop(
-    columns=["Date"],
-    errors="ignore"
-)
+            product_display_df = result.drop(
+                columns=["Date"],
+                errors="ignore"
+            )
 
-st.dataframe(
-    product_display_df,
-    use_container_width=True,
-    hide_index=True
-)
+            st.dataframe(
+                product_display_df,
+                use_container_width=True,
+                hide_index=True
+            )
 
-download_csv(
-    product_display_df,
-    "product_forecast.csv"
-)
+            download_csv(
+                product_display_df,
+                "product_forecast.csv"
+            )
 
-download_excel(
-    product_display_df,
-    "product_forecast.xlsx"
-)
-
-
+            download_excel(
+                product_display_df,
+                "product_forecast.xlsx"
+            )
 # ============================================================
 # REGION-BASED FORECAST
 # ============================================================
