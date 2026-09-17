@@ -1016,6 +1016,11 @@ elif page == "📦 Product-Based Forecast":
             int(horizon)
         )
 
+        result = (
+    result.groupby("Forecast_Date", as_index=False)["Predicted_Units_Sold"]
+    .sum()
+)
+
         if result.empty:
 
             st.warning(
@@ -1146,6 +1151,12 @@ elif page == "📍 Region-Based Forecast":
                 start_date,
                 int(forecast_horizon)
             )
+
+
+            result = (
+    result.groupby("Forecast_Date", as_index=False)["Predicted_Units_Sold"]
+    .sum()
+)
 
             if result.empty:
 
