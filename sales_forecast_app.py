@@ -1203,13 +1203,7 @@ elif page == "📍 Region-Based Forecast":
                         == selected_location
                     ].copy()
 
-                else:
-
-                    st.warning(
-                        "The selected location cannot be applied because "
-                        "new_region_forecast.csv does not contain "
-                        "Store_Location."
-                    )
+               
 
                 if result.empty:
 
