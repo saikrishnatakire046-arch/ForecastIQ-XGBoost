@@ -1099,15 +1099,16 @@ elif page == "📍 Region-Based Forecast":
 
     st.subheader("📍 Region / Location")
 
-    location = st.selectbox(
-    "Select Region / Location",
-    sorted(
-        region_forecast_df["Region"]
-        .dropna()
-        .unique()
-    ),
-    key="region_location_input"
-)
+        location = st.selectbox(
+        "Select Region / Location",
+        sorted(
+            region_forecast_df["Store_Location"]
+            .dropna()
+            .astype(str)
+            .unique()
+        ),
+        key="region_location_input"
+        )
     st.subheader("📅 Current Date")
 
     current_date = st.date_input(
