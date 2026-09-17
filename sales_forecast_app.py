@@ -92,7 +92,15 @@ def load_data():
 
     return data
 
+try:
+    overall_forecast = pd.read_csv(FORECAST_PATH)
 
+except Exception as e:
+    st.error(
+        f"Unable to load new_overall_forecast.csv: {e}"
+    )
+    overall_forecast = pd.DataFrame()
+    
 @st.cache_data
 "Unable to load new_overall_forecast.csv."
     forecast = pd.read_csv(FORECAST_PATH)
