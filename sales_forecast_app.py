@@ -442,39 +442,25 @@ def prepare_forecast(data, start_date, horizon):
         subset=["Forecast_Date"]
     )
 
-    # Start forecasting from tomorrow
     start_date = pd.Timestamp(
         start_date
     ).normalize()
 
-    # Generate sequential forecast dates
-    forecast_dates = pd.date_range(
-        start=start_date,
-        periods=int(horizon),
-        freq="D"
+    end_date = (
+        start_date
+        + pd.Timedelta(days=int(horizon) - 1)
     )
 
-    # Repeat forecast rows for each future date
-    result = temp.loc[
-        temp.index.repeat(len(forecast_dates))
-    ].reset_index(
-        drop=True
-    )
+    result = temp[
+        (temp["Forecast_Date"] >= start_date)
+        & (temp["Forecast_Date"] <= end_date)
+    ].copy()
 
-    # Assign sequential dates
-    result["Forecast_Date"] = np.tile(
-        forecast_dates,
-        len(temp)
-    )
-
-    # Sort by date
-    result = result.sort_values(
+    return result.sort_values(
         "Forecast_Date"
     ).reset_index(
         drop=True
     )
-
-    return result
 
 
 def estimate_price_elasticity(data, product=None):
