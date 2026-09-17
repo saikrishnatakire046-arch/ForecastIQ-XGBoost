@@ -686,89 +686,6 @@ Final Trial 84 Log-XGBoost
 )
 
 
-# ============================================================
-# EXECUTIVE DASHBOARD
-# ============================================================
-
-if page == "📊 Executive Dashboard":
-
-    st.title("📊 Executive Dashboard")
-
-    total_units = safe_sum(
-        historical_df,
-        "Units_Sold"
-    )
-
-    total_revenue = safe_sum(
-        historical_df,
-        "Revenue"
-    )
-
-    daily = daily_sales(
-        historical_df
-    )
-
-    average_daily = (
-        daily["Units_Sold"].mean()
-        if not daily.empty
-        else 0
-    )
-
-    forecast_units = safe_sum(
-        forecast_df,
-        "Predicted_Units_Sold"
-    )
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    c1.metric(
-        "Historical Units",
-        number(total_units)
-    )
-
-    c2.metric(
-        "Historical Revenue",
-        money(total_revenue)
-    )
-
-    c3.metric(
-        "Average Daily Sales",
-        f"{average_daily:,.1f}"
-    )
-
-    c4.metric(
-        "Forecast Units",
-        number(forecast_units)
-    )
-
-    st.subheader("Historical Sales Trend")
-
-    if not daily.empty:
-
-        st.line_chart(
-            daily.set_index("Date")[
-                ["Units_Sold"]
-            ]
-        )
-
-    st.subheader("Future Forecast")
-
-    if (
-        "Date" in forecast_df.columns
-        and "Predicted_Units_Sold"
-        in forecast_df.columns
-    ):
-
-        future = (
-            forecast_df
-            .groupby("Date")[
-                "Predicted_Units_Sold"
-            ]
-            .sum()
-        )
-
-        st.line_chart(future)
-
 
 # ============================================================
 # PRODUCT FORECAST
@@ -1021,105 +938,316 @@ elif page == "📦 Product-Based Forecast":
             )
 
 
+
+
 # ============================================================
-# REGION FORECAST
+# REGION BASED FORECAST
 # ============================================================
 
-elif page == "📍 Region-Based Forecast":
+elif page == "Region Based Forecast":
 
-    st.title("📍 Region-Based Forecast")
+    st.title("🌍 Region Based Sales Forecast")
 
     if region_forecast_df.empty:
-
-        st.error(
-            "new_region_forecast.csv is not available."
-        )
-
+        st.error("Region forecast data is not available.")
         st.stop()
 
-    required = [
-        "Forecast_Date",
+    # Detect region/location column
+    region_column = None
+
+    for column in ["Region", "Location", "region", "location", "Area", "area"]:
+        if column in region_forecast_df.columns:
+            region_column = column
+            break
+
+    if region_column is None:
+        st.error(
+            "No Region/Location column found in new_region_forecast.csv."
+        )
+        st.stop()
+
+    # Detect date column
+    region_date_column = None
+
+    for column in ["Forecast_Date", "Date", "date"]:
+        if column in region_forecast_df.columns:
+            region_date_column = column
+            break
+
+    if region_date_column is None:
+        st.error("No forecast date column found in region forecast data.")
+        st.stop()
+
+    # Detect sales forecast column
+    region_sales_column = None
+
+    for column in [
+        "Predicted_Sales",
+        "Forecast_Sales",
+        "Sales",
+        "Predicted_Revenue",
+        "Forecast",
+        "Prediction",
+    ]:
+        if column in region_forecast_df.columns:
+            region_sales_column = column
+            break
+
+    if region_sales_column is None:
+        st.error(
+            "No forecast sales column found in new_region_forecast.csv."
+        )
+        st.stop()
+
+    # Clean region data
+    region_forecast_df[region_date_column] = pd.to_datetime(
+        region_forecast_df[region_date_column],
+        errors="coerce"
+    )
+
+    region_forecast_df[region_sales_column] = pd.to_numeric(
+        region_forecast_df[region_sales_column],
+        errors="coerce"
+    )
+
+    region_forecast_df = region_forecast_df.dropna(
+        subset=[
+            region_column,
+            region_date_column,
+            region_sales_column
+        ]
+    )
+
+
+
+    # ============================================================
+# EXECUTIVE DASHBOARD
+# ============================================================
+
+if page == "📊 Executive Dashboard":
+
+    st.title("📊 Executive Dashboard")
+
+    total_units = safe_sum(
+        historical_df,
+        "Units_Sold"
+    )
+
+    total_revenue = safe_sum(
+        historical_df,
+        "Revenue"
+    )
+
+    daily = daily_sales(
+        historical_df
+    )
+
+    average_daily = (
+        daily["Units_Sold"].mean()
+        if not daily.empty
+        else 0
+    )
+
+    forecast_units = safe_sum(
+        forecast_df,
         "Predicted_Units_Sold"
-    ]
+    )
 
-    missing = [
-        column
-        for column in required
-        if column not in region_forecast_df.columns
-    ]
+    c1, c2, c3, c4 = st.columns(4)
 
-    if missing:
+    c1.metric(
+        "Historical Units",
+        number(total_units)
+    )
 
-        st.error(
-            f"Missing columns: {missing}"
+    c2.metric(
+        "Historical Revenue",
+        money(total_revenue)
+    )
+
+    c3.metric(
+        "Average Daily Sales",
+        f"{average_daily:,.1f}"
+    )
+
+    c4.metric(
+        "Forecast Units",
+        number(forecast_units)
+    )
+
+    st.subheader("Historical Sales Trend")
+
+    if not daily.empty:
+
+        st.line_chart(
+            daily.set_index("Date")[
+                ["Units_Sold"]
+            ]
         )
 
-        st.stop()
+    st.subheader("Future Forecast")
 
-    c1, c2 = st.columns(2)
-
-    with c1:
-
-        current_date = st.date_input(
-            "📅 Current Date",
-            value=HISTORICAL_CUTOFF.date(),
-            min_value=HISTORICAL_CUTOFF.date()
-        )
-
-    with c2:
-
-        horizon = st.number_input(
-            "🔮 Forecast Horizon",
-            min_value=1,
-            max_value=477,
-            value=30,
-            step=1
-        )
-
-    if st.button(
-        "🚀 Generate Forecast",
-        type="primary",
-        use_container_width=True
+    if (
+        "Date" in forecast_df.columns
+        and "Predicted_Units_Sold"
+        in forecast_df.columns
     ):
 
-        start_date = (
-            pd.Timestamp(current_date)
-            + pd.Timedelta(days=1)
+        future = (
+            forecast_df
+            .groupby("Date")[
+                "Predicted_Units_Sold"
+            ]
+            .sum()
         )
 
-        result = prepare_forecast(
-            region_forecast_df,
-            start_date,
-            int(horizon)
-        )
+        st.line_chart(future)
 
-        if result.empty:
+
+    # ========================================================
+    # LOCATION INPUT
+    # ========================================================
+
+    st.subheader("📍 Enter Your Location / Region")
+
+    user_location = st.text_input(
+        "Enter location",
+        placeholder="Example: Hyderabad, Delhi, Mumbai"
+    ).strip()
+
+    if user_location:
+
+        # Case-insensitive location matching
+        location_data = region_forecast_df[
+            region_forecast_df[region_column]
+            .astype(str)
+            .str.contains(
+                user_location,
+                case=False,
+                na=False
+            )
+        ].copy()
+
+        if location_data.empty:
 
             st.warning(
-                "No region forecast is available."
+                f"No forecast found for location: {user_location}"
             )
+
+            available_locations = sorted(
+                region_forecast_df[region_column]
+                .astype(str)
+                .unique()
+                .tolist()
+            )
+
+            st.info("Available locations:")
+
+            st.write(", ".join(available_locations))
 
         else:
 
             st.success(
-                "Region forecast generated successfully."
+                f"Forecast found for location: {user_location}"
+            )
+
+            location_data = location_data.sort_values(
+                by=region_date_column
+            )
+
+            # =================================================
+            # SUMMARY
+            # =================================================
+
+            total_forecast = location_data[
+                region_sales_column
+            ].sum()
+
+            average_forecast = location_data[
+                region_sales_column
+            ].mean()
+
+            highest_forecast = location_data[
+                region_sales_column
+            ].max()
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric(
+                    "Total Forecast",
+                    f"{total_forecast:,.0f}"
+                )
+
+            with col2:
+                st.metric(
+                    "Average Forecast",
+                    f"{average_forecast:,.0f}"
+                )
+
+            with col3:
+                st.metric(
+                    "Highest Forecast",
+                    f"{highest_forecast:,.0f}"
+                )
+
+            # =================================================
+            # FORECAST TABLE
+            # =================================================
+
+            st.subheader("📊 Location Forecast")
+
+            display_data = location_data[
+                [
+                    region_date_column,
+                    region_column,
+                    region_sales_column
+                ]
+            ].copy()
+
+            display_data = display_data.rename(
+                columns={
+                    region_date_column: "Forecast Date",
+                    region_column: "Location",
+                    region_sales_column: "Predicted Sales"
+                }
             )
 
             st.dataframe(
-                result,
+                display_data,
                 use_container_width=True,
                 hide_index=True
             )
 
-            download_csv(
-                result,
-                "region_forecast.csv"
+            # =================================================
+            # FORECAST CHART
+            # =================================================
+
+            st.subheader("📈 Forecast Trend")
+
+            chart_data = location_data[
+                [
+                    region_date_column,
+                    region_sales_column
+                ]
+            ].copy()
+
+            chart_data = chart_data.set_index(
+                region_date_column
             )
 
-            download_excel(
-                result,
-                "region_forecast.xlsx"
+            chart_data.columns = ["Predicted Sales"]
+
+            st.line_chart(
+                chart_data,
+                use_container_width=True
             )
+
+    else:
+
+        st.info(
+            "Enter a region or location above to view its forecast."
+        )
 
 
 # ============================================================
