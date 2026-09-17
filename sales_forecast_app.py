@@ -1033,13 +1033,9 @@ elif page == "📦 Product-Based Forecast":
                 errors="coerce"
             ).fillna(0)
 
-            result["Predicted_Units_Sold"] = (
-                result["Predicted_Units_Sold"]
-                * multiplier
-                .clip(0, 3)
-                if False
-                else result["Predicted_Units_Sold"] * multiplier
-            )
+           result["Predicted_Units_Sold"] = (
+    result["Predicted_Units_Sold"] * multiplier
+)
 
             result["Predicted_Units_Sold"] = (
                 result["Predicted_Units_Sold"]
@@ -1052,21 +1048,26 @@ elif page == "📦 Product-Based Forecast":
                 "Product forecast generated successfully."
             )
 
-            st.dataframe(
-                result,
-                use_container_width=True,
-                hide_index=True
-            )
+           product_display_df = result.drop(
+    columns=["Date"],
+    errors="ignore"
+)
 
-            download_csv(
-                result,
-                "product_forecast.csv"
-            )
+st.dataframe(
+    product_display_df,
+    use_container_width=True,
+    hide_index=True
+)
 
-            download_excel(
-                result,
-                "product_forecast.xlsx"
-            )
+download_csv(
+    product_display_df,
+    "product_forecast.csv"
+)
+
+download_excel(
+    product_display_df,
+    "product_forecast.xlsx"
+)
 
 
 # ============================================================
@@ -1081,10 +1082,6 @@ elif page == "📍 Region-Based Forecast":
 
     st.title("📍 Region-Based Forecast")
 
-    # --------------------------------------------------------
-    # LOCATION INPUT
-    # --------------------------------------------------------
-
     st.subheader("📍 Region / Location")
 
     location = st.text_input(
@@ -1093,40 +1090,25 @@ elif page == "📍 Region-Based Forecast":
         key="region_location_input"
     )
 
-    # --------------------------------------------------------
-    # CURRENT DATE
-    # --------------------------------------------------------
-
-    current_date = pd.Timestamp.today().normalize()
-
     st.subheader("📅 Current Date")
-    st.date_input(
+
+    current_date = st.date_input(
         "Current Date",
-        value=current_date.date(),
-        disabled=True,
+        value=HISTORICAL_CUTOFF.date(),
+        min_value=HISTORICAL_CUTOFF.date(),
         key="region_current_date"
     )
-
-    # --------------------------------------------------------
-    # FORECAST HORIZON
-    # --------------------------------------------------------
 
     st.subheader("🔮 Forecast Horizon")
 
     forecast_horizon = st.slider(
-        "Select Forecast Horizon",
+        "Forecast Horizon",
         min_value=1,
         max_value=90,
         value=30,
         step=1,
         key="region_forecast_horizon"
     )
-
-    # --------------------------------------------------------
-    # LOAD FORECAST DATA
-    # --------------------------------------------------------
-
-    region_forecast_df = load_region_forecast()
 
     if region_forecast_df.empty:
 
@@ -1136,138 +1118,72 @@ elif page == "📍 Region-Based Forecast":
 
     else:
 
-        # ----------------------------------------------------
-        # LOCATION VALIDATION
-        # ----------------------------------------------------
+        start_date = (
+            pd.Timestamp(current_date)
+            + pd.Timedelta(days=1)
+        )
 
-        location_columns = [
-            column
-            for column in region_forecast_df.columns
-            if column.lower() in [
-                "region",
-                "location",
-                "store_location",
-                "area",
-                "city"
-            ]
-        ]
+        result = prepare_forecast(
+            region_forecast_df,
+            start_date,
+            int(forecast_horizon)
+        )
 
-        if not location_columns:
+        if result.empty:
 
             st.warning(
-                "No Region or Location column was found in "
-                "new_region_forecast.csv."
-            )
-
-            st.write(
-                "Available columns:",
-                list(region_forecast_df.columns)
-            )
-
-            st.info(
-                "The location input is available, but the CSV must "
-                "contain a Region or Location column to produce "
-                "location-specific forecasts."
+                "No forecast is available for the selected "
+                "date and forecast horizon."
             )
 
         else:
 
-            location_column = location_columns[0]
+            # Remove Date and any location columns only.
+            # Forecast_Date is intentionally retained.
 
-            if location.strip():
-
-                filtered_region_df = region_forecast_df[
-                    region_forecast_df[location_column]
-                    .astype(str)
-                    .str.contains(
-                        location.strip(),
-                        case=False,
-                        na=False
-                    )
-                ].copy()
-
-            else:
-
-                filtered_region_df = region_forecast_df.copy()
-
-            # ------------------------------------------------
-            # DATE FILTER
-            # ------------------------------------------------
-
-            date_column = None
-
-            if "Forecast_Date" in filtered_region_df.columns:
-                date_column = "Forecast_Date"
-
-            elif "Date" in filtered_region_df.columns:
-                date_column = "Date"
-
-            if date_column is not None:
-
-                filtered_region_df[date_column] = pd.to_datetime(
-                    filtered_region_df[date_column],
-                    errors="coerce"
-                )
-
-                end_date = (
-                    current_date
-                    + pd.Timedelta(days=forecast_horizon)
-                )
-
-                filtered_region_df = filtered_region_df[
-                    (
-                        filtered_region_df[date_column]
-                        >= current_date
-                    )
-                    &
-                    (
-                        filtered_region_df[date_column]
-                        <= end_date
-                    )
-                ].copy()
-
-            # ------------------------------------------------
-            # REMOVE DATE COLUMNS FROM OUTPUT
-            # ------------------------------------------------
-
-            display_df = filtered_region_df.drop(
+            region_display_df = result.drop(
                 columns=[
                     "Date",
-                    "Forecast_Date"
+                    "Region",
+                    "Location",
+                    "Store_Location"
                 ],
                 errors="ignore"
             )
 
-            # ------------------------------------------------
-            # DISPLAY FORECAST
-            # ------------------------------------------------
+            st.success(
+                "Region forecast generated successfully."
+            )
 
-            if display_df.empty:
+            st.dataframe(
+                region_display_df,
+                use_container_width=True,
+                hide_index=True
+            )
 
-                st.warning(
-                    "No forecast data found for the selected "
-                    "location and forecast horizon."
+            if "Predicted_Units_Sold" in region_display_df.columns:
+
+                total_forecast = pd.to_numeric(
+                    region_display_df[
+                        "Predicted_Units_Sold"
+                    ],
+                    errors="coerce"
+                ).fillna(0).sum()
+
+                st.metric(
+                    "Total Predicted Units Sold",
+                    f"{total_forecast:,.0f}"
                 )
 
-            else:
+            download_csv(
+                region_display_df,
+                "region_forecast.csv"
+            )
 
-                st.dataframe(
-                    display_df,
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-                if "Predicted_Units_Sold" in display_df.columns:
-
-                    total_forecast = pd.to_numeric(
-                        display_df["Predicted_Units_Sold"],
-                        errors="coerce"
-                    ).fillna(0).sum()
-
-                    st.metric(
-                        "Total Predicted Units Sold",
-                        f"{total_forecast:,.0f}"
-                    )
+            download_excel(
+                region_display_df,
+                "region_forecast.xlsx"
+            )
 # ============================================================
 # LOCATION INTELLIGENCE
 # ============================================================
