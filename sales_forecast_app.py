@@ -1216,14 +1216,8 @@ elif page == "📍 Region-Based Forecast":
                     # ------------------------------------------------
                     # HIDE LOCATION AND DATE FROM DISPLAY
                     # ------------------------------------------------
-
-                    region_display_df = result.drop(
-                        columns=[
-                            "Date",
-                            "Store_Location"
-                        ],
-                        errors="ignore"
-                    )
+                    region_display_df = (     result.groupby(         ["Forecast_Date", "Product_ID", "Product_Name"],         as_index=False     )["Predicted_Units_Sold"]     .sum() 
+                   
 
                     st.success(
                         f"Region forecast generated for {selected_location}."
