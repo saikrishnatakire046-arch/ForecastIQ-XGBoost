@@ -1097,65 +1097,51 @@ elif page == "📍 Region-Based Forecast":
 
     st.title("📍 Region-Based Forecast")
 
-    st.subheader("📍 Region / Location")
+    # --------------------------------------------------------
+    # LOCATION DROPDOWN
+    # --------------------------------------------------------
 
-    # Detect an available location column without assuming one name
-    possible_location_columns = [
-        "Region",
-        "Location",
-        "Store_Location",
-        "Store Location",
-        "Store",
-        "Area",
-        "City"
-    ]
-
-    location_column = next(
-        (
-            column
-            for column in possible_location_columns
-            if column in region_forecast_df.columns
-        ),
-        None
-    )
-
-    if location_column is None:
+    if "Store_Location" not in historical_df.columns:
 
         st.error(
-            "No location column was found in the region forecast data."
-        )
-
-        st.write(
-            "Available columns:",
-            region_forecast_df.columns.tolist()
+            "Store_Location column is not available in sales_data.csv."
         )
 
         st.stop()
 
-    location = st.selectbox(
-        "Select Region / Location",
-        sorted(
-            region_forecast_df[location_column]
-            .dropna()
-            .astype(str)
-            .unique()
-        ),
-        key="region_location_input"
+    locations = sorted(
+        historical_df["Store_Location"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
     )
 
-    st.subheader("📅 Current Date")
+    if not locations:
+
+        st.warning("No store locations are available.")
+
+        st.stop()
+
+    selected_location = st.selectbox(
+        "🏪 Select Store / Location",
+        locations,
+        key="region_location_dropdown"
+    )
+
+    # --------------------------------------------------------
+    # DATE AND HORIZON
+    # --------------------------------------------------------
 
     current_date = st.date_input(
-        "Current Date",
+        "📅 Current Date",
         value=HISTORICAL_CUTOFF.date(),
         min_value=HISTORICAL_CUTOFF.date(),
         key="region_current_date"
     )
 
-    st.subheader("🔮 Forecast Horizon")
-
     forecast_horizon = st.slider(
-        "Forecast Horizon",
+        "🔮 Forecast Horizon",
         min_value=1,
         max_value=90,
         value=30,
@@ -1166,8 +1152,13 @@ elif page == "📍 Region-Based Forecast":
     generate_region_forecast = st.button(
         "🚀 Generate Region Forecast",
         type="primary",
-        use_container_width=True
+        use_container_width=True,
+        key="region_generate_button"
     )
+
+    # --------------------------------------------------------
+    # FORECAST OUTPUT
+    # --------------------------------------------------------
 
     if generate_region_forecast:
 
@@ -1190,130 +1181,183 @@ elif page == "📍 Region-Based Forecast":
                 int(forecast_horizon)
             )
 
-            # Filter the selected location
-            result = result[
-                result[location_column].astype(str).str.strip()
-                == location.strip()
-            ]
-
-            # Keep product-wise data before calculating daily totals
-            product_wise_result = result.copy()
-
-            # Calculate total predicted units for each date
-            result = (
-                result.groupby(
-                    "Forecast_Date",
-                    as_index=False
-                )["Predicted_Units_Sold"]
-                .sum()
-            )
-
             if result.empty:
 
                 st.warning(
                     "No forecast is available for the selected "
-                    "location, date, and forecast horizon."
+                    "date and forecast horizon."
                 )
 
             else:
 
-                region_display_df = result.drop(
-                    columns=[
-                        "Date",
-                        "Region",
-                        "Location",
-                        "Store_Location",
-                        "Store Location"
-                    ],
-                    errors="ignore"
-                )
+                # ------------------------------------------------
+                # IMPORTANT:
+                # FILTER BY LOCATION ONLY IF THE FORECAST FILE
+                # CONTAINS LOCATION INFORMATION
+                # ------------------------------------------------
 
-                st.success(
-                    "Region forecast generated successfully."
-                )
+                if "Store_Location" in result.columns:
 
-                st.subheader(
-                    "📊 Overall Forecast for Selected Location"
-                )
+                    result = result[
+                        result["Store_Location"].astype(str)
+                        == selected_location
+                    ].copy()
 
-                st.dataframe(
-                    region_display_df,
-                    use_container_width=True,
-                    hide_index=True
-                )
+                else:
 
-                # ============================================================
-                # PRODUCT-WISE FORECAST
-                # ============================================================
-
-                product_column = None
-
-                for column in [
-                    "Product",
-                    "Product_Name",
-                    "Product Name",
-                    "product",
-                    "product_name"
-                ]:
-
-                    if column in product_wise_result.columns:
-
-                        product_column = column
-                        break
-
-                if product_column is not None:
-
-                    st.subheader(
-                        "📦 Product-Wise Forecast for Selected Location"
+                    st.warning(
+                        "The selected location cannot be applied because "
+                        "new_region_forecast.csv does not contain "
+                        "Store_Location."
                     )
 
-                    product_display_df = product_wise_result.drop(
-                        columns=[
-                            "Date",
-                            "Region",
-                            "Location",
-                            "Store_Location",
-                            "Store Location"
-                        ],
-                        errors="ignore"
-                    )
+                if result.empty:
 
-                    st.dataframe(
-                        product_display_df,
-                        use_container_width=True,
-                        hide_index=True
+                    st.warning(
+                        "No forecast is available for the selected location."
                     )
 
                 else:
 
-                    st.info(
-                        "Product-wise forecast is unavailable because "
-                        "the forecast data does not contain a product column."
-                    )
+                    # ------------------------------------------------
+                    # HIDE LOCATION AND DATE FROM DISPLAY
+                    # ------------------------------------------------
 
-                if "Predicted_Units_Sold" in region_display_df.columns:
-
-                    total_forecast = pd.to_numeric(
-                        region_display_df[
-                            "Predicted_Units_Sold"
+                    region_display_df = result.drop(
+                        columns=[
+                            "Date",
+                            "Store_Location"
                         ],
-                        errors="coerce"
-                    ).fillna(0).sum()
-
-                    st.metric(
-                        "Total Predicted Units Sold",
-                        f"{total_forecast:,.0f}"
+                        errors="ignore"
                     )
 
-                download_csv(
-                    region_display_df,
-                    "region_forecast.csv"
-                )
+                    st.success(
+                        f"Region forecast generated for {selected_location}."
+                    )
 
-                download_excel(
-                    region_display_df,
-                    "region_forecast.xlsx"
-                )
+                    # ------------------------------------------------
+                    # OVERALL DAILY FORECAST
+                    # ------------------------------------------------
+
+                    st.subheader(
+                        f"📈 Overall Daily Forecast — {selected_location}"
+                    )
+
+                    overall_daily_forecast = (
+                        result
+                        .groupby(
+                            "Forecast_Date",
+                            as_index=False
+                        )["Predicted_Units_Sold"]
+                        .sum()
+                        .rename(
+                            columns={
+                                "Predicted_Units_Sold":
+                                "Total_Predicted_Units"
+                            }
+                        )
+                    )
+
+                    overall_daily_forecast[
+                        "Total_Predicted_Units"
+                    ] = (
+                        overall_daily_forecast[
+                            "Total_Predicted_Units"
+                        ]
+                        .round()
+                        .astype(int)
+                    )
+
+                    c1, c2, c3 = st.columns(3)
+
+                    c1.metric(
+                        "Total Predicted Units",
+                        f"{overall_daily_forecast['Total_Predicted_Units'].sum():,.0f}"
+                    )
+
+                    c2.metric(
+                        "Average Daily Units",
+                        f"{overall_daily_forecast['Total_Predicted_Units'].mean():,.1f}"
+                    )
+
+                    c3.metric(
+                        "Peak Daily Units",
+                        f"{overall_daily_forecast['Total_Predicted_Units'].max():,.0f}"
+                    )
+
+                    st.line_chart(
+                        overall_daily_forecast.set_index(
+                            "Forecast_Date"
+                        ),
+                        use_container_width=True
+                    )
+
+                    st.dataframe(
+                        overall_daily_forecast,
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+                    # ------------------------------------------------
+                    # PRODUCT-WISE FORECAST
+                    # ------------------------------------------------
+
+                    st.subheader(
+                        f"📦 Product-wise Forecast — {selected_location}"
+                    )
+
+                    product_wise_forecast = region_display_df[
+                        [
+                            "Forecast_Date",
+                            "Product_ID",
+                            "Product_Name",
+                            "Predicted_Units_Sold"
+                        ]
+                    ].copy()
+
+                    product_wise_forecast[
+                        "Predicted_Units_Sold"
+                    ] = (
+                        pd.to_numeric(
+                            product_wise_forecast[
+                                "Predicted_Units_Sold"
+                            ],
+                            errors="coerce"
+                        )
+                        .fillna(0)
+                        .round()
+                        .astype(int)
+                    )
+
+                    st.dataframe(
+                        product_wise_forecast,
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+                    # ------------------------------------------------
+                    # DOWNLOADS
+                    # ------------------------------------------------
+
+                    download_csv(
+                        overall_daily_forecast,
+                        "overall_daily_region_forecast.csv"
+                    )
+
+                    download_excel(
+                        overall_daily_forecast,
+                        "overall_daily_region_forecast.xlsx"
+                    )
+
+                    download_csv(
+                        product_wise_forecast,
+                        "product_wise_region_forecast.csv"
+                    )
+
+                    download_excel(
+                        product_wise_forecast,
+                        "product_wise_region_forecast.xlsx"
+                    )
 # LOCATION INTELLIGENCE
 # ============================================================
 
