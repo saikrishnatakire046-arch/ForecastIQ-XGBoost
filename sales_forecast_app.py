@@ -1097,16 +1097,8 @@ elif page == "📍 Region-Based Forecast":
 
     st.title("📍 Region-Based Forecast")
 
-    # --------------------------------------------------------
-    # LOCATION DROPDOWN
-    # --------------------------------------------------------
-
     if "Store_Location" not in historical_df.columns:
-
-        st.error(
-            "Store_Location column is not available in sales_data.csv."
-        )
-
+        st.error("Store_Location column is not available in sales_data.csv.")
         st.stop()
 
     locations = sorted(
@@ -1118,9 +1110,7 @@ elif page == "📍 Region-Based Forecast":
     )
 
     if not locations:
-
         st.warning("No store locations are available.")
-
         st.stop()
 
     selected_location = st.selectbox(
@@ -1128,10 +1118,6 @@ elif page == "📍 Region-Based Forecast":
         locations,
         key="region_location_dropdown"
     )
-
-    # --------------------------------------------------------
-    # DATE AND HORIZON
-    # --------------------------------------------------------
 
     current_date = st.date_input(
         "📅 Current Date",
@@ -1156,17 +1142,10 @@ elif page == "📍 Region-Based Forecast":
         key="region_generate_button"
     )
 
-    # --------------------------------------------------------
-    # FORECAST OUTPUT
-    # --------------------------------------------------------
-
     if generate_region_forecast:
 
         if region_forecast_df.empty:
-
-            st.error(
-                "Unable to load new_region_forecast.csv."
-            )
+            st.error("Unable to load new_region_forecast.csv.")
 
         else:
 
@@ -1190,10 +1169,6 @@ elif page == "📍 Region-Based Forecast":
 
             else:
 
-                # ------------------------------------------------
-                # FILTER BY LOCATION ONLY IF AVAILABLE
-                # ------------------------------------------------
-
                 if "Store_Location" in result.columns:
 
                     result = result[
@@ -1213,9 +1188,9 @@ elif page == "📍 Region-Based Forecast":
                         f"Region forecast generated for {selected_location}."
                     )
 
-                    # ------------------------------------------------
+                    # ====================================================
                     # OVERALL DAILY FORECAST
-                    # ------------------------------------------------
+                    # ====================================================
 
                     st.subheader(
                         f"📈 Overall Daily Forecast — {selected_location}"
@@ -1279,9 +1254,10 @@ elif page == "📍 Region-Based Forecast":
                         hide_index=True
                     )
 
-                    # ------------------------------------------------
+                    # ====================================================
                     # PRODUCT-WISE FORECAST
-                    # ------------------------------------------------
+                    # P001 ALL DATES FIRST, THEN P002 ALL DATES
+                    # ====================================================
 
                     st.subheader(
                         f"📦 Product-wise Forecast — {selected_location}"
@@ -1313,6 +1289,26 @@ elif page == "📍 Region-Based Forecast":
                         .astype(int)
                     )
 
+                    product_wise_forecast[
+                        "Forecast_Date"
+                    ] = pd.to_datetime(
+                        product_wise_forecast[
+                            "Forecast_Date"
+                        ],
+                        errors="coerce"
+                    )
+
+                    product_wise_forecast = (
+                        product_wise_forecast
+                        .sort_values(
+                            [
+                                "Product_ID",
+                                "Forecast_Date"
+                            ]
+                        )
+                        .reset_index(drop=True)
+                    )
+
                     product_wise_forecast = product_wise_forecast[
                         [
                             "Forecast_Date",
@@ -1322,41 +1318,15 @@ elif page == "📍 Region-Based Forecast":
                         ]
                     ]
 
-                    product_wise_forecast = (
-                        product_wise_forecast
-                        .sort_values(
-                            [
-                                "Forecast_Date",
-                                "Product_ID",
-                                "Product_Name"
-                            ]
-                        )
-                        .reset_index(drop=True)
-                    )
-
-                    # Show the date only once for consecutive rows
-                    # having the same forecast date.
-                    product_wise_display = product_wise_forecast.copy()
-
-                    repeated_dates = (
-                        product_wise_display["Forecast_Date"]
-                        == product_wise_display["Forecast_Date"].shift()
-                    )
-
-                    product_wise_display.loc[
-                        repeated_dates,
-                        "Forecast_Date"
-                    ] = ""
-
                     st.dataframe(
-                        product_wise_display,
+                        product_wise_forecast,
                         use_container_width=True,
                         hide_index=True
                     )
 
-                    # ------------------------------------------------
+                    # ====================================================
                     # DOWNLOADS
-                    # ------------------------------------------------
+                    # ====================================================
 
                     download_csv(
                         overall_daily_forecast,
