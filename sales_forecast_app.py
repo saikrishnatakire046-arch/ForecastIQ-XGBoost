@@ -1286,21 +1286,48 @@ elif page == "📍 Region-Based Forecast":
                     # One row per date and product.
                     # ------------------------------------------------
 
-                    st.subheader(
-                        f"📦 Product-wise Forecast — {selected_location}"
-                    )
+                    # ------------------------------------------------
+# PRODUCT-WISE FORECAST
+# One row per date
+# All products' units are added for that date
+# ------------------------------------------------
 
-                    product_wise_forecast = (
-                        result.groupby(
-                            [
-                                "Forecast_Date",
-                                "Product_ID",
-                                "Product_Name"
-                            ],
-                            as_index=False
-                        )["Predicted_Units_Sold"]
-                        .sum()
-                    )
+st.subheader(
+    f"📦 Product-wise Forecast — {selected_location}"
+)
+
+product_wise_forecast = (
+    result.groupby(
+        "Forecast_Date",
+        as_index=False
+    )["Predicted_Units_Sold"]
+    .sum()
+    .rename(
+        columns={
+            "Predicted_Units_Sold": "Total_Predicted_Units"
+        }
+    )
+)
+
+product_wise_forecast[
+    "Total_Predicted_Units"
+] = (
+    pd.to_numeric(
+        product_wise_forecast[
+            "Total_Predicted_Units"
+        ],
+        errors="coerce"
+    )
+    .fillna(0)
+    .round()
+    .astype(int)
+)
+
+st.dataframe(
+    product_wise_forecast,
+    use_container_width=True,
+    hide_index=True
+)
 
                     product_wise_forecast[
                         "Predicted_Units_Sold"
