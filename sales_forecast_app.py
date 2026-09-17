@@ -94,7 +94,7 @@ def load_data():
 
 
 @st.cache_data
-"Unable to load future_sales_forecast_2026_2027.csv. ():
+"Unable to load new_overall_forecast.csv."
     forecast = pd.read_csv(FORECAST_PATH)
 
     if "Forecast_Date" in forecast.columns:
