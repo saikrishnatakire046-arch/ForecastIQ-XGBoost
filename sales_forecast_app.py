@@ -1152,11 +1152,17 @@ elif page == "📍 Region-Based Forecast":
                 int(forecast_horizon)
             )
 
+            # Keep product-wise data before calculating totals
+            product_wise_result = result.copy()
 
+            # Calculate overall predicted units per date
             result = (
-    result.groupby("Forecast_Date", as_index=False)["Predicted_Units_Sold"]
-    .sum()
-)
+                result.groupby(
+                    "Forecast_Date",
+                    as_index=False
+                )["Predicted_Units_Sold"]
+                .sum()
+            )
 
             if result.empty:
 
@@ -1181,11 +1187,63 @@ elif page == "📍 Region-Based Forecast":
                     "Region forecast generated successfully."
                 )
 
+                st.subheader(
+                    "📊 Overall Forecast for Selected Region"
+                )
+
                 st.dataframe(
                     region_display_df,
                     use_container_width=True,
                     hide_index=True
                 )
+
+                # ============================================================
+                # PRODUCT-WISE FORECAST FOR THE SELECTED REGION
+                # ============================================================
+
+                product_column = None
+
+                for column in [
+                    "Product",
+                    "Product_Name",
+                    "Product Name",
+                    "product",
+                    "product_name"
+                ]:
+
+                    if column in product_wise_result.columns:
+
+                        product_column = column
+                        break
+
+                if product_column is not None:
+
+                    st.subheader(
+                        "📦 Product-Wise Forecast for Selected Region"
+                    )
+
+                    product_display_df = product_wise_result.drop(
+                        columns=[
+                            "Date",
+                            "Region",
+                            "Location",
+                            "Store_Location"
+                        ],
+                        errors="ignore"
+                    )
+
+                    st.dataframe(
+                        product_display_df,
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+                else:
+
+                    st.info(
+                        "Product-wise forecast is unavailable because "
+                        "the forecast CSV does not contain a product column."
+                    )
 
                 if "Predicted_Units_Sold" in region_display_df.columns:
 
