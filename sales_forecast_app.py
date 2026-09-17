@@ -143,8 +143,75 @@ def load_region_forecast():
 # LOAD DATA
 # ============================================================
 
+# ============================================================
+# DATA LOADING
+# ============================================================
+
+@st.cache_data
+def load_data():
+    data = pd.read_csv(DATA_PATH)
+
+    if "Date" in data.columns:
+        data["Date"] = pd.to_datetime(
+            data["Date"],
+            errors="coerce"
+        )
+
+    return data
+
+
+@st.cache_data
+def load_overall_forecast():
+    forecast = pd.read_csv(FORECAST_PATH)
+
+    if "Forecast_Date" in forecast.columns:
+        forecast["Forecast_Date"] = pd.to_datetime(
+            forecast["Forecast_Date"],
+            errors="coerce"
+        )
+
+    if "Date" in forecast.columns:
+        forecast["Date"] = pd.to_datetime(
+            forecast["Date"],
+            errors="coerce"
+        )
+
+    return forecast
+
+
+@st.cache_data
+def load_product_forecast():
+    forecast = pd.read_csv(PRODUCT_FORECAST_PATH)
+
+    if "Forecast_Date" in forecast.columns:
+        forecast["Forecast_Date"] = pd.to_datetime(
+            forecast["Forecast_Date"],
+            errors="coerce"
+        )
+
+    return forecast
+
+
+@st.cache_data
+def load_region_forecast():
+    forecast = pd.read_csv(REGION_FORECAST_PATH)
+
+    if "Forecast_Date" in forecast.columns:
+        forecast["Forecast_Date"] = pd.to_datetime(
+            forecast["Forecast_Date"],
+            errors="coerce"
+        )
+
+    return forecast
+
+
+# ============================================================
+# LOAD DATA
+# ============================================================
+
 try:
     df = load_data()
+
 except Exception as e:
     st.error(f"Unable to load sales_data.csv: {e}")
     st.stop()
@@ -152,26 +219,72 @@ except Exception as e:
 
 try:
     forecast_df = load_overall_forecast()
+
 except Exception as e:
     st.error(
-    "Unable to load new_overall_forecast.csv. "
-    f"Error: {e}"
-)
+        f"Unable to load new_overall_forecast.csv: {e}"
+    )
     st.stop()
 
 
 try:
     product_forecast_df = load_product_forecast()
-except Exception:
+
+except Exception as e:
+    st.warning(
+        f"Unable to load new_product_forecast.csv: {e}"
+    )
     product_forecast_df = pd.DataFrame()
 
 
 try:
     region_forecast_df = load_region_forecast()
-except Exception:
+
+except Exception as e:
+    st.warning(
+        f"Unable to load new_region_forecast.csv: {e}"
+    )
     region_forecast_df = pd.DataFrame()
 
+def standardize_overall_forecast_dates(forecast):
 
+    forecast = forecast.copy()
+
+    if "Forecast_Date" in forecast.columns:
+
+        forecast["Forecast_Date"] = pd.to_datetime(
+            forecast["Forecast_Date"],
+            errors="coerce"
+        )
+
+        if "Date" not in forecast.columns:
+
+            forecast["Date"] = forecast["Forecast_Date"]
+
+    elif "Date" in forecast.columns:
+
+        forecast["Date"] = pd.to_datetime(
+            forecast["Date"],
+            errors="coerce"
+        )
+
+        if "Forecast_Date" not in forecast.columns:
+
+            forecast["Forecast_Date"] = forecast["Date"]
+
+    return forecast
+    try:
+    forecast_df = load_overall_forecast()
+
+    forecast_df = standardize_overall_forecast_dates(
+        forecast_df
+    )
+
+except Exception as e:
+    st.error(
+        f"Unable to load new_overall_forecast.csv: {e}"
+    )
+    st.stop()
 # ============================================================
 # HISTORICAL DATA
 # ============================================================
@@ -829,6 +942,37 @@ if page == "📦 Product-Based Forecast":
         "could not be loaded."
     )
     st.stop()
+
+required = [
+    "Forecast_Date",
+    "Predicted_Units_Sold"
+]
+
+missing = [
+    c
+    for c in required
+    if c not in product_forecast_df.columns
+]
+
+if missing:
+    st.error(f"Missing columns: {missing}")
+
+    st.write(
+        "Columns found:",
+        list(product_forecast_df.columns)
+    )
+
+    st.stop()
+
+product_forecast_df["Forecast_Date"] = pd.to_datetime(
+    product_forecast_df["Forecast_Date"],
+    errors="coerce"
+)
+
+product_forecast_df["Predicted_Units_Sold"] = pd.to_numeric(
+    product_forecast_df["Predicted_Units_Sold"],
+    errors="coerce"
+).fillna(0)
 
 required = [
     "Forecast_Date",
@@ -2810,22 +2954,21 @@ elif page == "New Prediction":
                 "Prediction Trend"
             )
 
-           chart = result[
-    [
-        "Forecast_Date",
-        "Baseline_Forecast",
-        "Predicted_Units_Sold"
-    ]
-].copy()
+                      chart = result[
+                [
+                    "Forecast_Date",
+                    "Baseline_Forecast",
+                    "Predicted_Units_Sold"
+                ]
+            ].copy()
 
-chart = chart.set_index(
-    "Forecast_Date"
-)
+            chart = chart.set_index(
+                "Forecast_Date"
+            )
 
             st.line_chart(
                 chart
             )
-
             st.subheader(
                 "Prediction Details"
             )
