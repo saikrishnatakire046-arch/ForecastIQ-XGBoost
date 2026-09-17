@@ -82,11 +82,18 @@ MODEL_FEATURES = [
 # ============================================================
 
 @st.cache_data
+def load_csv_file(path):
+
+    return pd.read_csv(path)
+
+
+@st.cache_data
 def load_data():
 
-    data = pd.read_csv(DATA_PATH)
+    data = load_csv_file(DATA_PATH)
 
     if "Date" in data.columns:
+
         data["Date"] = pd.to_datetime(
             data["Date"],
             errors="coerce"
@@ -98,87 +105,25 @@ def load_data():
 @st.cache_data
 def load_overall_forecast():
 
-    forecast = pd.read_csv(FORECAST_PATH)
+    data = load_csv_file(FORECAST_PATH)
 
-    if "Forecast_Date" in forecast.columns:
-        forecast["Forecast_Date"] = pd.to_datetime(
-            forecast["Forecast_Date"],
-            errors="coerce"
-        )
-
-    if "Date" in forecast.columns:
-        forecast["Date"] = pd.to_datetime(
-            forecast["Date"],
-            errors="coerce"
-        )
-
-    return forecast
+    return standardize_forecast_dates(data)
 
 
 @st.cache_data
 def load_product_forecast():
 
-    forecast = pd.read_csv(PRODUCT_FORECAST_PATH)
+    data = load_csv_file(PRODUCT_FORECAST_PATH)
 
-    if "Forecast_Date" in forecast.columns:
-        forecast["Forecast_Date"] = pd.to_datetime(
-            forecast["Forecast_Date"],
-            errors="coerce"
-        )
-
-    return forecast
+    return standardize_forecast_dates(data)
 
 
 @st.cache_data
 def load_region_forecast():
 
-    forecast = pd.read_csv(REGION_FORECAST_PATH)
+    data = load_csv_file(REGION_FORECAST_PATH)
 
-    if "Forecast_Date" in forecast.columns:
-        forecast["Forecast_Date"] = pd.to_datetime(
-            forecast["Forecast_Date"],
-            errors="coerce"
-        )
-
-    return forecast
-
-
-# ============================================================
-# LOAD FILES
-# ============================================================
-
-try:
-    df = load_data()
-except Exception as e:
-    st.error(f"Unable to load sales_data.csv: {e}")
-    st.stop()
-
-
-try:
-    forecast_df = load_overall_forecast()
-except Exception as e:
-    st.error(
-        f"Unable to load new_overall_forecast.csv: {e}"
-    )
-    st.stop()
-
-
-try:
-    product_forecast_df = load_product_forecast()
-except Exception as e:
-    st.warning(
-        f"Unable to load new_product_forecast.csv: {e}"
-    )
-    product_forecast_df = pd.DataFrame()
-
-
-try:
-    region_forecast_df = load_region_forecast()
-except Exception as e:
-    st.warning(
-        f"Unable to load new_region_forecast.csv: {e}"
-    )
-    region_forecast_df = pd.DataFrame()
+    return standardize_forecast_dates(data)
 
 
 def standardize_forecast_dates(data):
@@ -193,6 +138,7 @@ def standardize_forecast_dates(data):
         )
 
         if "Date" not in data.columns:
+
             data["Date"] = data["Forecast_Date"]
 
     elif "Date" in data.columns:
@@ -207,31 +153,81 @@ def standardize_forecast_dates(data):
     return data
 
 
-forecast_df = standardize_forecast_dates(
-    forecast_df
-)
+# ============================================================
+# LOAD FILES
+# ============================================================
+
+try:
+
+    df = load_data()
+
+except Exception as error:
+
+    st.error(f"Unable to load sales_data.csv: {error}")
+    st.stop()
+
+
+try:
+
+    forecast_df = load_overall_forecast()
+
+except Exception as error:
+
+    st.error(
+        f"Unable to load new_overall_forecast.csv: {error}"
+    )
+
+    st.stop()
+
+
+try:
+
+    product_forecast_df = load_product_forecast()
+
+except Exception as error:
+
+    st.warning(
+        f"Unable to load new_product_forecast.csv: {error}"
+    )
+
+    product_forecast_df = pd.DataFrame()
+
+
+try:
+
+    region_forecast_df = load_region_forecast()
+
+except Exception as error:
+
+    st.warning(
+        f"Unable to load new_region_forecast.csv: {error}"
+    )
+
+    region_forecast_df = pd.DataFrame()
 
 
 # ============================================================
-# HISTORICAL DATA
+# HISTORICAL DATA PREPARATION
 # ============================================================
 
 if "Date" not in df.columns:
-    st.error("sales_data.csv must contain a Date column.")
+
+    st.error(
+        "sales_data.csv must contain a Date column."
+    )
+
     st.stop()
+
 
 historical_df = df[
     df["Date"] <= HISTORICAL_CUTOFF
 ].copy()
 
+
 historical_df = historical_df.sort_values(
     "Date"
 )
 
-
-# ============================================================
-# BASIC CLEANING
-# ============================================================
 
 for column in [
     "Units_Sold",
@@ -239,7 +235,9 @@ for column in [
     "Price",
     "Discount_Percentage",
     "Competitor_Price",
-    "Marketing_Spend"
+    "Marketing_Spend",
+    "Stock_Availability",
+    "Economic_Indicator"
 ]:
 
     if column in historical_df.columns:
@@ -257,6 +255,7 @@ for column in [
 def safe_sum(data, column):
 
     if column not in data.columns:
+
         return 0
 
     return pd.to_numeric(
@@ -268,36 +267,40 @@ def safe_sum(data, column):
 def safe_mean(data, column):
 
     if column not in data.columns or data.empty:
+
         return 0
 
     return pd.to_numeric(
         data[column],
         errors="coerce"
-    ).mean()
+    ).fillna(0).mean()
+
+
+def money(value):
+
+    return f"₹{safe_float(value):,.0f}"
+
+
+def number(value):
+
+    return f"{safe_float(value):,.0f}"
 
 
 def safe_float(value, default=0.0):
 
     try:
 
-        value = float(value)
+        result = float(value)
 
-        if not np.isfinite(value):
+        if not np.isfinite(result):
+
             return default
 
-        return value
+        return result
 
     except Exception:
 
         return default
-
-
-def money(value):
-    return f"₹{value:,.0f}"
-
-
-def number(value):
-    return f"{value:,.0f}"
 
 
 def download_csv(data, filename):
@@ -339,6 +342,20 @@ def download_excel(data, filename):
 def daily_sales(data):
 
     if data.empty:
+
+        return pd.DataFrame()
+
+    required = [
+        "Date",
+        "Units_Sold",
+        "Revenue"
+    ]
+
+    if not all(
+        column in data.columns
+        for column in required
+    ):
+
         return pd.DataFrame()
 
     return (
@@ -353,7 +370,8 @@ def daily_sales(data):
 
 def weekly_sales(data):
 
-    if data.empty:
+    if data.empty or "Date" not in data.columns:
+
         return pd.DataFrame()
 
     temp = data.copy()
@@ -362,6 +380,18 @@ def weekly_sales(data):
         temp["Date"],
         errors="coerce"
     )
+
+    temp = temp.dropna(
+        subset=["Date"]
+    )
+
+    if "Units_Sold" not in temp.columns:
+
+        temp["Units_Sold"] = 0
+
+    if "Revenue" not in temp.columns:
+
+        temp["Revenue"] = 0
 
     return (
         temp.set_index("Date")
@@ -377,25 +407,30 @@ def weekly_sales(data):
 def group_units(data, column):
 
     if column not in data.columns:
+
+        return pd.DataFrame()
+
+    if "Units_Sold" not in data.columns:
+
         return pd.DataFrame()
 
     return (
-        data.groupby(column, dropna=False)["Units_Sold"]
+        data.groupby(
+            column,
+            dropna=False
+        )["Units_Sold"]
         .sum()
         .sort_values(ascending=False)
         .reset_index()
     )
 
 
-def prepare_forecast(
-    data,
-    start_date,
-    horizon
-):
+def prepare_forecast(data, start_date, horizon):
 
     temp = data.copy()
 
     if "Forecast_Date" not in temp.columns:
+
         return pd.DataFrame()
 
     temp["Forecast_Date"] = pd.to_datetime(
@@ -408,20 +443,17 @@ def prepare_forecast(
         + pd.Timedelta(days=int(horizon) - 1)
     )
 
-    temp = temp[
+    result = temp[
         (temp["Forecast_Date"] >= start_date)
         & (temp["Forecast_Date"] <= end_date)
     ].copy()
 
-    return temp.sort_values(
+    return result.sort_values(
         "Forecast_Date"
     )
 
 
-def estimate_price_elasticity(
-    data,
-    product=None
-):
+def estimate_price_elasticity(data, product=None):
 
     temp = data.copy()
 
@@ -436,16 +468,24 @@ def estimate_price_elasticity(
         ].copy()
 
         if len(subset) >= 20:
+
             temp = subset
 
     if not all(
         column in temp.columns
-        for column in ["Price", "Units_Sold"]
+        for column in [
+            "Price",
+            "Units_Sold"
+        ]
     ):
+
         return -0.50
 
     temp = temp[
-        ["Price", "Units_Sold"]
+        [
+            "Price",
+            "Units_Sold"
+        ]
     ].dropna()
 
     temp = temp[
@@ -454,6 +494,7 @@ def estimate_price_elasticity(
     ]
 
     if len(temp) < 20:
+
         return -0.50
 
     try:
@@ -511,6 +552,7 @@ def scenario_multiplier(
         ]
 
         if not product_data.empty:
+
             subset = product_data
 
     multiplier = 1.0
@@ -562,11 +604,14 @@ def scenario_multiplier(
 
             multiplier *= (
                 1
-                + (discount_ratio - 1)
+                + (
+                    discount_ratio - 1
+                )
                 * min(discount / 100, 0.5)
             )
 
     if promotion == 1:
+
         multiplier *= 1.05
 
     multiplier *= np.clip(
@@ -576,9 +621,11 @@ def scenario_multiplier(
     )
 
     if holiday == 1:
+
         multiplier *= 1.08
 
     if local_event == 1:
+
         multiplier *= 1.05
 
     if (
@@ -658,6 +705,7 @@ pages = [
     "New Prediction"
 ]
 
+
 st.sidebar.title("📈 ForecastIQ")
 
 st.sidebar.caption(
@@ -686,9 +734,96 @@ Final Trial 84 Log-XGBoost
 )
 
 
+# ============================================================
+# EXECUTIVE DASHBOARD
+# ============================================================
+
+if page == "📊 Executive Dashboard":
+
+    st.title("📊 Executive Dashboard")
+
+    total_units = safe_sum(
+        historical_df,
+        "Units_Sold"
+    )
+
+    total_revenue = safe_sum(
+        historical_df,
+        "Revenue"
+    )
+
+    daily = daily_sales(
+        historical_df
+    )
+
+    average_daily = (
+        daily["Units_Sold"].mean()
+        if not daily.empty
+        else 0
+    )
+
+    forecast_units = safe_sum(
+        forecast_df,
+        "Predicted_Units_Sold"
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric(
+        "Historical Units",
+        number(total_units)
+    )
+
+    c2.metric(
+        "Historical Revenue",
+        money(total_revenue)
+    )
+
+    c3.metric(
+        "Average Daily Sales",
+        f"{average_daily:,.1f}"
+    )
+
+    c4.metric(
+        "Forecast Units",
+        number(forecast_units)
+    )
+
+    st.subheader("📈 Historical Sales Trend")
+
+    if not daily.empty:
+
+        st.line_chart(
+            daily.set_index("Date")[
+                ["Units_Sold"]
+            ],
+            use_container_width=True
+        )
+
+    st.subheader("🔮 Future Forecast")
+
+    if (
+        "Date" in forecast_df.columns
+        and "Predicted_Units_Sold"
+        in forecast_df.columns
+    ):
+
+        future = (
+            forecast_df
+            .groupby("Date")[
+                "Predicted_Units_Sold"
+            ]
+            .sum()
+        )
+
+        st.line_chart(
+            future,
+            use_container_width=True
+        )
+
 
 # ============================================================
-# PRODUCT FORECAST
+# PRODUCT-BASED FORECAST
 # ============================================================
 
 elif page == "📦 Product-Based Forecast":
@@ -698,32 +833,25 @@ elif page == "📦 Product-Based Forecast":
     if product_forecast_df.empty:
 
         st.error(
-            "new_product_forecast.csv "
-            "could not be loaded."
+            "new_product_forecast.csv could not be loaded."
         )
 
         st.stop()
 
-    required = [
-        "Forecast_Date",
-        "Predicted_Units_Sold"
-    ]
-
-    missing = [
-        column
-        for column in required
-        if column not in product_forecast_df.columns
-    ]
-
-    if missing:
+    if "Forecast_Date" not in product_forecast_df.columns:
 
         st.error(
-            f"Missing columns: {missing}"
+            "Forecast_Date column is missing from "
+            "new_product_forecast.csv."
         )
 
-        st.write(
-            "Columns found:",
-            list(product_forecast_df.columns)
+        st.stop()
+
+    if "Predicted_Units_Sold" not in product_forecast_df.columns:
+
+        st.error(
+            "Predicted_Units_Sold column is missing from "
+            "new_product_forecast.csv."
         )
 
         st.stop()
@@ -742,10 +870,10 @@ elif page == "📦 Product-Based Forecast":
         .unique()
     ) if "Store_Location" in historical_df.columns else []
 
-    if not products or not stores:
+    if not products:
 
         st.error(
-            "Product or store data is unavailable."
+            "Product_Name column or product values are unavailable."
         )
 
         st.stop()
@@ -764,7 +892,7 @@ elif page == "📦 Product-Based Forecast":
         selected_store = st.selectbox(
             "🏪 Store",
             stores
-        )
+        ) if stores else None
 
     with c3:
 
@@ -848,8 +976,17 @@ elif page == "📦 Product-Based Forecast":
             step=1
         )
 
+    with c3:
+
+        marketing_spend = st.number_input(
+            "📣 Marketing Spend",
+            min_value=0.0,
+            value=1000.0,
+            step=100.0
+        )
+
     generate = st.button(
-        "🚀 Generate Forecast",
+        "🚀 Generate Product Forecast",
         type="primary",
         use_container_width=True
     )
@@ -870,8 +1007,8 @@ elif page == "📦 Product-Based Forecast":
         if result.empty:
 
             st.warning(
-                "No forecast is available for "
-                "the selected date and horizon."
+                "No forecast is available for the selected "
+                "date and horizon."
             )
 
         else:
@@ -888,19 +1025,20 @@ elif page == "📦 Product-Based Forecast":
                 1 if holiday == "Yes" else 0,
                 1 if local_event == "Yes" else 0,
                 competitor_price,
-                safe_mean(
-                    historical_df,
-                    "Marketing_Spend"
-                )
+                marketing_spend
             )
 
+            result["Predicted_Units_Sold"] = pd.to_numeric(
+                result["Predicted_Units_Sold"],
+                errors="coerce"
+            ).fillna(0)
+
             result["Predicted_Units_Sold"] = (
-                pd.to_numeric(
-                    result["Predicted_Units_Sold"],
-                    errors="coerce"
-                )
-                .fillna(0)
+                result["Predicted_Units_Sold"]
                 * multiplier
+                .clip(0, 3)
+                if False
+                else result["Predicted_Units_Sold"] * multiplier
             )
 
             result["Predicted_Units_Sold"] = (
@@ -909,13 +1047,6 @@ elif page == "📦 Product-Based Forecast":
                 .round()
                 .astype(int)
             )
-
-            result = result[
-                [
-                    "Forecast_Date",
-                    "Predicted_Units_Sold"
-                ]
-            ]
 
             st.success(
                 "Product forecast generated successfully."
@@ -938,79 +1069,118 @@ elif page == "📦 Product-Based Forecast":
             )
 
 
-
-
 # ============================================================
-# REGION BASED FORECAST
+# REGION-BASED FORECAST
 # ============================================================
 
-elif page == "Region Based Forecast":
+elif page == "📍 Region-Based Forecast":
 
-    st.title("🌍 Region Based Sales Forecast")
+    st.title("📍 Region-Based Forecast")
 
     if region_forecast_df.empty:
-        st.error("Region forecast data is not available.")
+
+        st.error(
+            "new_region_forecast.csv could not be loaded."
+        )
+
         st.stop()
 
-    # Detect region/location column
+    region_data = region_forecast_df.copy()
+
     region_column = None
 
-    for column in ["Region", "Location", "region", "location", "Area", "area"]:
-        if column in region_forecast_df.columns:
+    for column in [
+        "Region",
+        "Location",
+        "region",
+        "location",
+        "Area",
+        "area",
+        "Store_Location",
+        "Store Location"
+    ]:
+
+        if column in region_data.columns:
+
             region_column = column
             break
 
     if region_column is None:
+
         st.error(
-            "No Region/Location column found in new_region_forecast.csv."
+            "No Region or Location column was found in "
+            "new_region_forecast.csv."
         )
+
+        st.write(
+            "Available columns:",
+            list(region_data.columns)
+        )
+
         st.stop()
 
-    # Detect date column
     region_date_column = None
 
-    for column in ["Forecast_Date", "Date", "date"]:
-        if column in region_forecast_df.columns:
+    for column in [
+        "Forecast_Date",
+        "Date",
+        "date"
+    ]:
+
+        if column in region_data.columns:
+
             region_date_column = column
             break
 
     if region_date_column is None:
-        st.error("No forecast date column found in region forecast data.")
+
+        st.error(
+            "No forecast date column was found."
+        )
+
         st.stop()
 
-    # Detect sales forecast column
     region_sales_column = None
 
     for column in [
+        "Predicted_Units_Sold",
         "Predicted_Sales",
         "Forecast_Sales",
         "Sales",
         "Predicted_Revenue",
         "Forecast",
-        "Prediction",
+        "Prediction"
     ]:
-        if column in region_forecast_df.columns:
+
+        if column in region_data.columns:
+
             region_sales_column = column
             break
 
     if region_sales_column is None:
+
         st.error(
-            "No forecast sales column found in new_region_forecast.csv."
+            "No forecast value column was found."
         )
+
+        st.write(
+            "Available columns:",
+            list(region_data.columns)
+        )
+
         st.stop()
 
-    # Clean region data
-    region_forecast_df[region_date_column] = pd.to_datetime(
-        region_forecast_df[region_date_column],
+    region_data[region_date_column] = pd.to_datetime(
+        region_data[region_date_column],
         errors="coerce"
     )
 
-    region_forecast_df[region_sales_column] = pd.to_numeric(
-        region_forecast_df[region_sales_column],
+    region_data[region_sales_column] = pd.to_numeric(
+        region_data[region_sales_column],
         errors="coerce"
     )
 
-    region_forecast_df = region_forecast_df.dropna(
+    region_data = region_data.dropna(
         subset=[
             region_column,
             region_date_column,
@@ -1018,146 +1188,61 @@ elif page == "Region Based Forecast":
         ]
     )
 
-
-
-    # ============================================================
-# EXECUTIVE DASHBOARD
-# ============================================================
-
-if page == "📊 Executive Dashboard":
-
-    st.title("📊 Executive Dashboard")
-
-    total_units = safe_sum(
-        historical_df,
-        "Units_Sold"
-    )
-
-    total_revenue = safe_sum(
-        historical_df,
-        "Revenue"
-    )
-
-    daily = daily_sales(
-        historical_df
-    )
-
-    average_daily = (
-        daily["Units_Sold"].mean()
-        if not daily.empty
-        else 0
-    )
-
-    forecast_units = safe_sum(
-        forecast_df,
-        "Predicted_Units_Sold"
-    )
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    c1.metric(
-        "Historical Units",
-        number(total_units)
-    )
-
-    c2.metric(
-        "Historical Revenue",
-        money(total_revenue)
-    )
-
-    c3.metric(
-        "Average Daily Sales",
-        f"{average_daily:,.1f}"
-    )
-
-    c4.metric(
-        "Forecast Units",
-        number(forecast_units)
-    )
-
-    st.subheader("Historical Sales Trend")
-
-    if not daily.empty:
-
-        st.line_chart(
-            daily.set_index("Date")[
-                ["Units_Sold"]
-            ]
-        )
-
-    st.subheader("Future Forecast")
-
-    if (
-        "Date" in forecast_df.columns
-        and "Predicted_Units_Sold"
-        in forecast_df.columns
-    ):
-
-        future = (
-            forecast_df
-            .groupby("Date")[
-                "Predicted_Units_Sold"
-            ]
-            .sum()
-        )
-
-        st.line_chart(future)
-
-
-    # ========================================================
-    # LOCATION INPUT
-    # ========================================================
-
-    st.subheader("📍 Enter Your Location / Region")
+    st.subheader("🔎 Search Forecast by Location")
 
     user_location = st.text_input(
-        "Enter location",
+        "Enter your region or location",
         placeholder="Example: Hyderabad, Delhi, Mumbai"
     ).strip()
 
-    if user_location:
+    if user_location == "":
 
-        # Case-insensitive location matching
-        location_data = region_forecast_df[
-            region_forecast_df[region_column]
+        st.info(
+            "Enter a location above to view its forecast."
+        )
+
+    else:
+
+        location_data = region_data[
+            region_data[region_column]
             .astype(str)
             .str.contains(
                 user_location,
                 case=False,
-                na=False
+                na=False,
+                regex=False
             )
         ].copy()
 
         if location_data.empty:
 
             st.warning(
-                f"No forecast found for location: {user_location}"
+                f"No forecast found for location: "
+                f"{user_location}"
             )
 
             available_locations = sorted(
-                region_forecast_df[region_column]
+                region_data[region_column]
                 .astype(str)
                 .unique()
                 .tolist()
             )
 
-            st.info("Available locations:")
+            st.write("Available locations:")
 
-            st.write(", ".join(available_locations))
+            st.write(
+                ", ".join(available_locations)
+            )
 
         else:
-
-            st.success(
-                f"Forecast found for location: {user_location}"
-            )
 
             location_data = location_data.sort_values(
                 by=region_date_column
             )
 
-            # =================================================
-            # SUMMARY
-            # =================================================
+            st.success(
+                f"Forecast found for: {user_location}"
+            )
 
             total_forecast = location_data[
                 region_sales_column
@@ -1171,29 +1256,22 @@ if page == "📊 Executive Dashboard":
                 region_sales_column
             ].max()
 
-            col1, col2, col3 = st.columns(3)
+            c1, c2, c3 = st.columns(3)
 
-            with col1:
-                st.metric(
-                    "Total Forecast",
-                    f"{total_forecast:,.0f}"
-                )
+            c1.metric(
+                "Total Forecast",
+                f"{total_forecast:,.0f}"
+            )
 
-            with col2:
-                st.metric(
-                    "Average Forecast",
-                    f"{average_forecast:,.0f}"
-                )
+            c2.metric(
+                "Average Forecast",
+                f"{average_forecast:,.0f}"
+            )
 
-            with col3:
-                st.metric(
-                    "Highest Forecast",
-                    f"{highest_forecast:,.0f}"
-                )
-
-            # =================================================
-            # FORECAST TABLE
-            # =================================================
+            c3.metric(
+                "Highest Forecast",
+                f"{highest_forecast:,.0f}"
+            )
 
             st.subheader("📊 Location Forecast")
 
@@ -1219,11 +1297,7 @@ if page == "📊 Executive Dashboard":
                 hide_index=True
             )
 
-            # =================================================
-            # FORECAST CHART
-            # =================================================
-
-            st.subheader("📈 Forecast Trend")
+            st.subheader("📈 Location Forecast Trend")
 
             chart_data = location_data[
                 [
@@ -1236,22 +1310,28 @@ if page == "📊 Executive Dashboard":
                 region_date_column
             )
 
-            chart_data.columns = ["Predicted Sales"]
+            chart_data.columns = [
+                "Predicted Sales"
+            ]
 
             st.line_chart(
                 chart_data,
                 use_container_width=True
             )
 
-    else:
+            download_csv(
+                display_data,
+                "location_forecast.csv"
+            )
 
-        st.info(
-            "Enter a region or location above to view its forecast."
-        )
+            download_excel(
+                display_data,
+                "location_forecast.xlsx"
+            )
 
 
 # ============================================================
-# INTELLIGENCE PAGES
+# LOCATION INTELLIGENCE
 # ============================================================
 
 elif page == "Location Intelligence":
@@ -1265,14 +1345,16 @@ elif page == "Location Intelligence":
             "Store_Location"
         )
 
-        st.bar_chart(
-            result.set_index("Store_Location")
-        )
+        if not result.empty:
 
-        st.dataframe(
-            result,
-            use_container_width=True
-        )
+            st.bar_chart(
+                result.set_index("Store_Location")
+            )
+
+            st.dataframe(
+                result,
+                use_container_width=True
+            )
 
     else:
 
@@ -1280,6 +1362,10 @@ elif page == "Location Intelligence":
             "Store_Location column is unavailable."
         )
 
+
+# ============================================================
+# PRODUCT INTELLIGENCE
+# ============================================================
 
 elif page == "Product Intelligence":
 
@@ -1292,14 +1378,16 @@ elif page == "Product Intelligence":
             "Product_Name"
         )
 
-        st.bar_chart(
-            result.set_index("Product_Name")
-        )
+        if not result.empty:
 
-        st.dataframe(
-            result,
-            use_container_width=True
-        )
+            st.bar_chart(
+                result.set_index("Product_Name")
+            )
+
+            st.dataframe(
+                result,
+                use_container_width=True
+            )
 
     else:
 
@@ -1307,6 +1395,10 @@ elif page == "Product Intelligence":
             "Product_Name column is unavailable."
         )
 
+
+# ============================================================
+# QUARTER INTELLIGENCE
+# ============================================================
 
 elif page == "Quarter Intelligence":
 
@@ -1323,7 +1415,10 @@ elif page == "Quarter Intelligence":
 
     result = (
         temp.groupby(
-            ["Year", "Quarter"]
+            [
+                "Year",
+                "Quarter"
+            ]
         )["Units_Sold"]
         .sum()
         .reset_index()
@@ -1344,6 +1439,10 @@ elif page == "Quarter Intelligence":
         use_container_width=True
     )
 
+
+# ============================================================
+# DEMAND DRIVERS
+# ============================================================
 
 elif page == "Demand Drivers":
 
@@ -1366,25 +1465,39 @@ elif page == "Demand Drivers":
         if column in historical_df.columns
     ]
 
-    correlation = historical_df[
-        available
-    ].corr(numeric_only=True)
+    if len(available) >= 2:
 
-    if "Units_Sold" in correlation.columns:
+        correlation = historical_df[
+            available
+        ].corr(numeric_only=True)
 
-        result = (
-            correlation["Units_Sold"]
-            .sort_values(ascending=False)
-            .to_frame("Correlation")
+        if "Units_Sold" in correlation.columns:
+
+            result = (
+                correlation["Units_Sold"]
+                .sort_values(ascending=False)
+                .to_frame("Correlation")
+            )
+
+            st.dataframe(
+                result,
+                use_container_width=True
+            )
+
+            st.bar_chart(
+                result
+            )
+
+    else:
+
+        st.warning(
+            "Not enough numeric columns for correlation analysis."
         )
 
-        st.dataframe(
-            result,
-            use_container_width=True
-        )
 
-        st.bar_chart(result)
-
+# ============================================================
+# PRICING INTELLIGENCE
+# ============================================================
 
 elif page == "Pricing Intelligence":
 
@@ -1397,7 +1510,10 @@ elif page == "Pricing Intelligence":
 
         st.scatter_chart(
             historical_df[
-                ["Price", "Units_Sold"]
+                [
+                    "Price",
+                    "Units_Sold"
+                ]
             ].set_index("Price")
         )
 
@@ -1411,6 +1527,16 @@ elif page == "Pricing Intelligence":
             )
         )
 
+    else:
+
+        st.warning(
+            "Price or Units_Sold column is unavailable."
+        )
+
+
+# ============================================================
+# PROMOTION INTELLIGENCE
+# ============================================================
 
 elif page == "Promotion Intelligence":
 
@@ -1424,7 +1550,11 @@ elif page == "Promotion Intelligence":
                 "Units_Sold"
             ]
             .agg(
-                ["sum", "mean", "count"]
+                [
+                    "sum",
+                    "mean",
+                    "count"
+                ]
             )
             .reset_index()
         )
@@ -1438,6 +1568,16 @@ elif page == "Promotion Intelligence":
             result.set_index("Promotion_Flag")
         )
 
+    else:
+
+        st.warning(
+            "Promotion_Flag column is unavailable."
+        )
+
+
+# ============================================================
+# CATEGORY INTELLIGENCE
+# ============================================================
 
 elif page == "Category Intelligence":
 
@@ -1450,15 +1590,27 @@ elif page == "Category Intelligence":
             "Category"
         )
 
-        st.bar_chart(
-            result.set_index("Category")
+        if not result.empty:
+
+            st.bar_chart(
+                result.set_index("Category")
+            )
+
+            st.dataframe(
+                result,
+                use_container_width=True
+            )
+
+    else:
+
+        st.warning(
+            "Category column is unavailable."
         )
 
-        st.dataframe(
-            result,
-            use_container_width=True
-        )
 
+# ============================================================
+# SALES CHANNEL INTELLIGENCE
+# ============================================================
 
 elif page == "Sales Channel Intelligence":
 
@@ -1471,15 +1623,27 @@ elif page == "Sales Channel Intelligence":
             "Sales_Channel"
         )
 
-        st.bar_chart(
-            result.set_index("Sales_Channel")
+        if not result.empty:
+
+            st.bar_chart(
+                result.set_index("Sales_Channel")
+            )
+
+            st.dataframe(
+                result,
+                use_container_width=True
+            )
+
+    else:
+
+        st.warning(
+            "Sales_Channel column is unavailable."
         )
 
-        st.dataframe(
-            result,
-            use_container_width=True
-        )
 
+# ============================================================
+# CUSTOMER INTELLIGENCE
+# ============================================================
 
 elif page == "Customer Intelligence":
 
@@ -1492,15 +1656,27 @@ elif page == "Customer Intelligence":
             "Customer_Segment"
         )
 
-        st.bar_chart(
-            result.set_index("Customer_Segment")
+        if not result.empty:
+
+            st.bar_chart(
+                result.set_index("Customer_Segment")
+            )
+
+            st.dataframe(
+                result,
+                use_container_width=True
+            )
+
+    else:
+
+        st.warning(
+            "Customer_Segment column is unavailable."
         )
 
-        st.dataframe(
-            result,
-            use_container_width=True
-        )
 
+# ============================================================
+# WEEKLY SALES INTELLIGENCE
+# ============================================================
 
 elif page == "Weekly Sales Intelligence":
 
@@ -1514,14 +1690,20 @@ elif page == "Weekly Sales Intelligence":
 
         st.line_chart(
             result.set_index("Date")[
-                ["Units_Sold"]
-            ]
+                [
+                    "Units_Sold"
+                ]
+            ],
+            use_container_width=True
         )
 
         st.line_chart(
             result.set_index("Date")[
-                ["Revenue"]
-            ]
+                [
+                    "Revenue"
+                ]
+            ],
+            use_container_width=True
         )
 
         st.dataframe(
@@ -1530,26 +1712,47 @@ elif page == "Weekly Sales Intelligence":
         )
 
 
+# ============================================================
+# FORECAST INTELLIGENCE
+# ============================================================
+
 elif page == "Forecast Intelligence":
 
     st.title("🔮 Forecast Intelligence")
 
     result = forecast_df.copy()
 
+    if "Date" not in result.columns:
+
+        if "Forecast_Date" in result.columns:
+
+            result["Date"] = result["Forecast_Date"]
+
+        else:
+
+            st.error(
+                "No Date or Forecast_Date column found."
+            )
+
+            st.stop()
+
+    if "Predicted_Units_Sold" not in result.columns:
+
+        st.error(
+            "Predicted_Units_Sold column is missing."
+        )
+
+        st.stop()
+
     result["Date"] = pd.to_datetime(
         result["Date"],
         errors="coerce"
     )
 
-    result["Predicted_Units_Sold"] = (
-        pd.to_numeric(
-            result["Predicted_Units_Sold"],
-            errors="coerce"
-        )
-        .fillna(0)
-        .round()
-        .astype(int)
-    )
+    result["Predicted_Units_Sold"] = pd.to_numeric(
+        result["Predicted_Units_Sold"],
+        errors="coerce"
+    ).fillna(0)
 
     c1, c2, c3 = st.columns(3)
 
@@ -1572,10 +1775,16 @@ elif page == "Forecast Intelligence":
         )
     )
 
-    st.line_chart(
+    future = (
         result.groupby("Date")[
             "Predicted_Units_Sold"
-        ].sum()
+        ]
+        .sum()
+    )
+
+    st.line_chart(
+        future,
+        use_container_width=True
     )
 
     st.dataframe(
@@ -1583,6 +1792,10 @@ elif page == "Forecast Intelligence":
         use_container_width=True
     )
 
+
+# ============================================================
+# MODEL INTELLIGENCE
+# ============================================================
 
 elif page == "Model Intelligence":
 
@@ -1614,6 +1827,10 @@ elif page == "Model Intelligence":
         hide_index=True
     )
 
+
+# ============================================================
+# CROSS-ANALYSIS EXPLORER
+# ============================================================
 
 elif page == "Cross-Analysis Explorer":
 
@@ -1648,23 +1865,41 @@ elif page == "Cross-Analysis Explorer":
             ]
         )
 
-        result = (
-            historical_df
-            .groupby(selected)[metric]
-            .sum()
-            .sort_values(ascending=False)
-            .reset_index()
+        if metric in historical_df.columns:
+
+            result = (
+                historical_df
+                .groupby(selected)[metric]
+                .sum()
+                .sort_values(ascending=False)
+                .reset_index()
+            )
+
+            st.bar_chart(
+                result.set_index(selected)
+            )
+
+            st.dataframe(
+                result,
+                use_container_width=True
+            )
+
+        else:
+
+            st.warning(
+                f"{metric} column is unavailable."
+            )
+
+    else:
+
+        st.warning(
+            "No analysis dimensions are available."
         )
 
-        st.bar_chart(
-            result.set_index(selected)
-        )
 
-        st.dataframe(
-            result,
-            use_container_width=True
-        )
-
+# ============================================================
+# DEMAND OPPORTUNITY FINDER
+# ============================================================
 
 elif page == "Demand Opportunity Finder":
 
@@ -1684,7 +1919,10 @@ elif page == "Demand Opportunity Finder":
 
         result["Revenue_per_Unit"] = (
             result["Revenue"]
-            / result["Units_Sold"].replace(0, np.nan)
+            / result["Units_Sold"].replace(
+                0,
+                np.nan
+            )
         )
 
         result = result.sort_values(
@@ -1699,19 +1937,40 @@ elif page == "Demand Opportunity Finder":
 
         st.bar_chart(
             result.set_index("Product_Name")[
-                ["Units_Sold"]
+                [
+                    "Units_Sold"
+                ]
             ]
         )
 
+    else:
+
+        st.warning(
+            "Product_Name column is unavailable."
+        )
+
+
+# ============================================================
+# LEADERBOARDS
+# ============================================================
 
 elif page == "Leaderboards":
 
     st.title("🏆 Leaderboards")
 
     for column, title in [
-        ("Product_Name", "Top Products"),
-        ("Store_Location", "Top Locations"),
-        ("Category", "Top Categories")
+        (
+            "Product_Name",
+            "Top Products"
+        ),
+        (
+            "Store_Location",
+            "Top Locations"
+        ),
+        (
+            "Category",
+            "Top Categories"
+        )
     ]:
 
         if column in historical_df.columns:
@@ -1727,6 +1986,10 @@ elif page == "Leaderboards":
             )
 
 
+# ============================================================
+# PRODUCT × LOCATION FINDER
+# ============================================================
+
 elif page == "Product × Location Finder":
 
     st.title("📦 × 📍 Product × Location Finder")
@@ -1739,12 +2002,14 @@ elif page == "Product × Location Finder":
         products = sorted(
             historical_df["Product_Name"]
             .dropna()
+            .astype(str)
             .unique()
         )
 
         locations = sorted(
             historical_df["Store_Location"]
             .dropna()
+            .astype(str)
             .unique()
         )
 
@@ -1769,14 +2034,14 @@ elif page == "Product × Location Finder":
         if selected_product != "All":
 
             result = result[
-                result["Product_Name"]
+                result["Product_Name"].astype(str)
                 == selected_product
             ]
 
         if selected_location != "All":
 
             result = result[
-                result["Store_Location"]
+                result["Store_Location"].astype(str)
                 == selected_location
             ]
 
@@ -1807,6 +2072,16 @@ elif page == "Product × Location Finder":
             use_container_width=True
         )
 
+    else:
+
+        st.warning(
+            "Product_Name or Store_Location column is unavailable."
+        )
+
+
+# ============================================================
+# ASK FORECASTIQ
+# ============================================================
 
 elif page == "Ask ForecastIQ":
 
@@ -1822,21 +2097,23 @@ elif page == "Ask ForecastIQ":
 
         if "top product" in query:
 
-            result = (
-                historical_df
-                .groupby("Product_Name")[
-                    "Units_Sold"
-                ]
-                .sum()
-                .sort_values(ascending=False)
-                .head(5)
-                .reset_index()
-            )
+            if "Product_Name" in historical_df.columns:
 
-            st.dataframe(
-                result,
-                use_container_width=True
-            )
+                result = (
+                    historical_df
+                    .groupby("Product_Name")[
+                        "Units_Sold"
+                    ]
+                    .sum()
+                    .sort_values(ascending=False)
+                    .head(5)
+                    .reset_index()
+                )
+
+                st.dataframe(
+                    result,
+                    use_container_width=True
+                )
 
         elif "forecast" in query:
 
@@ -1864,6 +2141,10 @@ Try:
 """
             )
 
+
+# ============================================================
+# DATA EXPLORER
+# ============================================================
 
 elif page == "Data Explorer":
 
@@ -2011,11 +2292,13 @@ elif page == "New Prediction":
         step=100.0
     )
 
-    if st.button(
+    generate_prediction = st.button(
         "🚀 Generate New Prediction",
         type="primary",
         use_container_width=True
-    ):
+    )
+
+    if generate_prediction:
 
         start_date = (
             pd.Timestamp(current_date)
@@ -2038,13 +2321,15 @@ elif page == "New Prediction":
 
             result = result.copy()
 
+            selected_product_value = (
+                None
+                if selected_product == "All Products"
+                else selected_product
+            )
+
             multiplier = scenario_multiplier(
                 historical_df,
-                (
-                    None
-                    if selected_product == "All Products"
-                    else selected_product
-                ),
+                selected_product_value,
                 price,
                 discount,
                 1 if promotion == "Yes" else 0,
@@ -2055,12 +2340,10 @@ elif page == "New Prediction":
                 marketing_spend
             )
 
-            result["Baseline_Forecast"] = (
-                pd.to_numeric(
-                    result["Predicted_Units_Sold"],
-                    errors="coerce"
-                ).fillna(0)
-            )
+            result["Baseline_Forecast"] = pd.to_numeric(
+                result["Predicted_Units_Sold"],
+                errors="coerce"
+            ).fillna(0)
 
             result["Scenario_Multiplier"] = multiplier
 
@@ -2114,7 +2397,8 @@ elif page == "New Prediction":
             )
 
             st.line_chart(
-                chart
+                chart,
+                use_container_width=True
             )
 
             st.dataframe(
