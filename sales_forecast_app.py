@@ -102,9 +102,27 @@ except Exception as e:
     overall_forecast = pd.DataFrame()
     
 @st.cache_data
-"Unable to load new_overall_forecast.csv."
-    forecast = pd.read_csv(FORECAST_PATH)
+def load_overall_forecast():
 
+    forecast = pd.read_csv(
+        FORECAST_PATH
+    )
+
+    if "Forecast_Date" in forecast.columns:
+
+        forecast["Forecast_Date"] = pd.to_datetime(
+            forecast["Forecast_Date"],
+            errors="coerce"
+        )
+
+    if "Date" in forecast.columns:
+
+        forecast["Date"] = pd.to_datetime(
+            forecast["Date"],
+            errors="coerce"
+        )
+
+    return forecast
     if "Forecast_Date" in forecast.columns:
         forecast["Forecast_Date"] = pd.to_datetime(
             forecast["Forecast_Date"],
